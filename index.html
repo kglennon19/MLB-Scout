@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MLB Line Scout — v1</title>
+<title>MLB Line Scout — v2</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Outfit:wght@300;400;500;600;700;800&display=swap');
   :root {
@@ -302,7 +302,7 @@
 <body>
 
 <header>
-  <div class="logo"><div class="logo-dot"></div>MLB LINE SCOUT <span class="logo-version">V1</span></div>
+  <div class="logo"><div class="logo-dot"></div>MLB LINE SCOUT <span class="logo-version">V2</span></div>
   <div class="header-right">
     <span class="status-chip" id="lastRunChip">NEVER RUN</span>
     <button class="run-btn" id="mainRunBtn" onclick="runAgent()">
@@ -429,7 +429,7 @@
       <div style="border:1px solid var(--border);border-radius:6px;padding:12px 14px;margin-bottom:14px">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
           <div style="flex:1">
-            <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">⚾ Baseball Reference Pitching <span style="font-size:10px;font-weight:400;color:var(--text3)">(optional — FIP, BABIP against, K/9, BB/9)</span></div>
+            <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">🔄 Team Batting vs LHP <span style="font-size:10px;font-weight:400;color:var(--text3)">(platoon splits — OPS, SLG, HR vs left-handed pitchers)</span></div>
             <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-bottom:8px">Paste in F12 console on <code style="color:var(--blue)">baseball-reference.com/leagues/majors/2025.shtml</code> (pitching table)</div>
             <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
               <button class="btn-sm primary" id="syncBRPitchBtn" onclick="syncBaseballRefPitching()">⟳ Sync BR Pitching</button>
@@ -442,11 +442,37 @@
       <div style="border:1px solid var(--green);border-radius:6px;padding:12px 14px;margin-bottom:14px;background:rgba(34,212,138,0.03)">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
           <div style="flex:1">
-            <div style="font-size:11px;font-weight:600;color:var(--green);margin-bottom:4px">🏠 Baseball Reference Batting <span style="font-size:10px;font-weight:400;color:var(--text3)">(recommended for Player Props — ISO, SLG, HR/PA, wRC+)</span></div>
-            <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-bottom:8px">Paste in F12 console on <code style="color:var(--blue)">baseball-reference.com/leagues/majors/2025-standard-batting.shtml</code></div>
+            <div style="font-size:11px;font-weight:600;color:var(--green);margin-bottom:4px">🔄 Team Batting vs RHP <span style="font-size:10px;font-weight:400;color:var(--text3)">(platoon splits — OPS, SLG, HR vs right-handed pitchers)</span></div>
+            <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-bottom:8px">Paste in F12 console on <code style="color:var(--blue)">BR team splits vs RHP page</code> (link opens automatically)</div>
             <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
               <button class="btn-sm primary" id="syncBRBatBtn" onclick="syncBaseballRefBatting()">⟳ Sync BR Batting</button>
               <span id="brBatSyncStatus" style="font-size:10px;font-family:var(--mono);color:var(--text3)">Not synced — props use ESPN only</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- BallparkPal Park Factors (optional) -->
+      <div style="border:1px solid var(--border);border-radius:6px;padding:12px 14px;margin-bottom:14px">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <div style="flex:1">
+            <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">🏟️ BallparkPal Daily Park Factors <span style="font-size:10px;font-weight:400;color:var(--text3)">(optional — weather-adjusted, batter-level park effects · $10/mo)</span></div>
+            <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-bottom:8px">Paste in F12 console on <code style="color:var(--blue)">ballparkpal.com/Park-Factors.php</code></div>
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+              <button class="btn-sm" id="syncBPPBtn" onclick="syncBallparkPal()">⟳ Sync BallparkPal</button>
+              <span id="bppSyncStatus" style="font-size:10px;font-family:var(--mono);color:var(--text3)">Not synced — using static park factors</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Individual Player Batting -->
+      <div style="border:1px solid var(--border);border-radius:6px;padding:12px 14px;margin-bottom:14px">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <div style="flex:1">
+            <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">👤 Individual Player Batting <span style="font-size:10px;font-weight:400;color:var(--text3)">(optional — per-player OPS, HR, SLG for props)</span></div>
+            <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-bottom:8px">Paste in F12 console on <code style="color:var(--blue)">baseball-reference.com/leagues/majors/2025-standard-batting.shtml</code></div>
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+              <button class="btn-sm" id="syncBRPlayerBtn" onclick="syncBRPlayers()">⟳ Sync Player Stats</button>
+              <span id="brPlayerSyncStatus" style="font-size:10px;font-family:var(--mono);color:var(--text3)">Not synced — props use team averages</span>
             </div>
           </div>
         </div>
@@ -533,7 +559,7 @@
       <div class="divider"></div>
       <div class="card-title" style="margin-bottom:12px">EV & Alert Thresholds</div>
       <div class="config-row">
-        <span class="config-label">Min EV (run line)</span>
+        <span class="config-label">Min EV (run line / ML)</span>
         <input type="number" class="config-input" id="evThreshold" value="0.25" step="0.05" min="0.05" max="2.0" style="max-width:100px">
         <span style="font-size:11px;color:var(--text3);font-family:var(--mono)">runs</span>
       </div>
@@ -608,7 +634,7 @@
 'use strict';
 
 // ═══════════════════════════════════════════════════════════════════
-// MLB LINE SCOUT v1 — Forked from NHL Line Scout v2
+// MLB LINE SCOUT v2 — Forked from NHL Line Scout v2
 // Changes from NHL v2:
 //   1. All ESPN endpoints swapped to baseball/mlb
 //   2. Formula: 9 MLB components (starter, base, bullpen, lineup, etc.)
@@ -623,15 +649,14 @@ const state = { running: false, lastRun: null, todayGames: [], todayPicks: [], e
 
 // ─── WEIGHTS ────────────────────────────────────────────────────────
 const DEFAULT_WEIGHTS = {
-  base:        { label: 'Pythagorean expectancy edge',         value: 22 },
-  starter:     { label: 'Starting pitcher ERA/FIP edge',       value: 28 },
+  starter:     { label: 'Starting pitcher ERA/FIP edge',       value: 25 },
+  base:        { label: 'Pythagorean expectancy edge',         value: 18 },
+  platoon:     { label: 'Platoon splits (lineup vs hand)',     value: 18 },
   bullpen:     { label: 'Bullpen ERA differential',            value: 12 },
-  lineup:      { label: 'Lineup OPS/wRC+ quality',             value: 10 },
-  recency:     { label: 'Recency (last-10 scoring rate)',      value: 8  },
-  rest:        { label: 'Starter days rest',                   value: 6  },
-  site:        { label: 'Home field + park factor',            value: 6  },
-  context:     { label: 'Context (travel, day/night, IL)',     value: 4  },
-  platoon:     { label: 'Platoon (starter hand vs lineup)',    value: 4  },
+  lineup:      { label: 'Lineup quality (actual roster)',      value: 8  },
+  park:        { label: 'Park factor interaction',             value: 8  },
+  recency:     { label: 'Recency (last-5 scoring rate)',       value: 6  },
+  context:     { label: 'Context (day/night, IL, division)',   value: 5  },
   // Dormant
   babip_regression: { label: 'Pitcher BABIP regression',       value: 0  },
   bullpen_fatigue:  { label: 'Bullpen workload fatigue',       value: 0  },
@@ -671,6 +696,13 @@ const ESPN_TO_FULL_NAME = {
   'SEA':'Seattle Mariners','STL':'St. Louis Cardinals','TB':'Tampa Bay Rays',
   'TEX':'Texas Rangers','TOR':'Toronto Blue Jays','WSH':'Washington Nationals',
 };
+
+
+// BR abbreviations that differ from ESPN
+const BR_TO_ESPN = { ATH:'OAK', KCR:'KC', SDP:'SD', SFG:'SF', TBR:'TB', WSN:'WSH' };
+const ESPN_TO_BR = { OAK:'ATH', KC:'KCR', SD:'SDP', SF:'SFG', TB:'TBR', WSH:'WSN' };
+function brToEspn(abbr) { return BR_TO_ESPN[abbr] || abbr; }
+function espnToBr(abbr) { return ESPN_TO_BR[abbr] || abbr; }
 
 // ─── STORAGE POLYFILL ───────────────────────────────────────────────
 const store = {
@@ -849,9 +881,11 @@ let _espnTeamStats = {};      // abbr → { era, ops, runs_pg, ... }
 let _espnPitcherStats = {};   // "Full Name" → { era, whip, k9, bb9, ip, teamAbbr }
 let _espnTeamIdMap = {};      // abbr → espn team id
 let _espnRawGames = [];       // raw game objects from scoreboard
-let _brAdvStats = {};         // "Full Team Name" → { pyth_pct, babip, run_diff, ... }
-let _brPitchStats = {};       // "Full Team Name" → { fip, babip_against, k9, bb9 }
-let _brBatStats = {};         // "Full Team Name" → { iso, slg, hr, pa, wrc_plus, ops }
+let _brAdvStats = {};         // "Full Team Name" → { pyth_pct, runs_pg, runs_allowed_pg, ... }
+let _brSplitsVsLHP = {};     // ESPN abbr → { avg, obp, slg, ops, hr, so, bb, pa, babip }
+let _brSplitsVsRHP = {};     // ESPN abbr → { avg, obp, slg, ops, hr, so, bb, pa, babip }
+let _playerStatsCache = {};  // "Player Name" → { team, pa, hr, avg, slg, ops, so, bb, war }
+let _espnRosterCache = {};   // ESPN abbr → [{ name, id, bats, throws, position }]
 let _brSyncDate = null;
 let _mlbStatsCache = null;
 let _mlbStatsCacheDate = null;
@@ -873,8 +907,8 @@ function buildMLBStatsCache() {
   for (const [abbr, t] of Object.entries(_espnTeamStats)) {
     const fullName = t.name || ESPN_TO_FULL_NAME[abbr] || abbr;
     const br = _brAdvStats[fullName] || {};
-    const brp = _brPitchStats[fullName] || {};
-    const brb = _brBatStats[fullName] || {};
+    const brp = {};
+    const brb = {};
     const gamesPlayed = t.games || 1;
     const runsPg = t.runs_pg || null;
     const runsAllowedPg = t.runs_allowed_pg || null;
@@ -1057,7 +1091,42 @@ async function autoFetchESPN() {
     if (pitcherEl) { pitcherEl.textContent = '✓ ' + pitcherTotal + ' starters'; pitcherEl.style.color = 'var(--green)'; }
     addLog('ESPN pitchers: ' + pitcherTotal + ' confirmed starters', 'ok');
 
-    // 5. Rebuild merged stats cache
+
+    // 5. Fetch rosters with handedness for today's teams
+    const gameTeamIds = [];
+    games.forEach(function(g) {
+      if (g.away_team_id) gameTeamIds.push({ id: g.away_team_id, abbr: g.awayAbbr });
+      if (g.home_team_id) gameTeamIds.push({ id: g.home_team_id, abbr: g.homeAbbr });
+    });
+    let rosterTotal = 0;
+    await Promise.all(gameTeamIds.map(async function(t) {
+      try {
+        const rr = await fetch('https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/teams/' + t.id + '/roster');
+        const rd = await rr.json();
+        const players = [];
+        (rd.athletes || []).forEach(function(group) {
+          (group.items || []).forEach(function(p) {
+            players.push({
+              name: p.displayName, id: p.id,
+              bats: p.bats ? p.bats.abbreviation : null,
+              throws: p.throws ? p.throws.abbreviation : null,
+              position: p.position ? p.position.abbreviation : null,
+            });
+            // Store pitcher throws hand in pitcher stats cache
+            if (p.position && (p.position.abbreviation === 'SP' || p.position.abbreviation === 'RP') && p.throws) {
+              if (_espnPitcherStats[p.displayName]) {
+                _espnPitcherStats[p.displayName].throws = p.throws.abbreviation;
+              }
+            }
+          });
+        });
+        _espnRosterCache[t.abbr] = players;
+        rosterTotal += players.length;
+      } catch (e) {}
+    }));
+    addLog('Rosters: ' + gameTeamIds.length + ' teams, ' + rosterTotal + ' players with handedness', 'ok');
+
+    // 6. Rebuild merged stats cache
     buildMLBStatsCache();
 
     // Restore BR status
@@ -1081,11 +1150,12 @@ async function autoFetchESPN() {
 // BASEBALL REFERENCE SCRAPERS — copy()+paste approach
 // ═══════════════════════════════════════════════════════════════════
 
-const BR_TEAM_SCRAPER = '(function(){try{var bt=document.getElementById("teams_standard_batting");var pt=document.getElementById("teams_standard_pitching");if(!bt){console.error("No teams_standard_batting table found. Are you on baseball-reference.com/leagues/majors/2025.shtml?");return;}function getRows(tbl){var rows=tbl.querySelectorAll("tbody tr");var data={};for(var r=0;r<rows.length;r++){var row=rows[r];if(row.classList.contains("thead")||row.classList.contains("stat_total"))continue;var link=row.querySelector("a");if(!link)continue;var team=link.textContent.trim().replace(/[*+]/g,"");if(!team)continue;var obj={};var cells=row.querySelectorAll("td,th");for(var c=0;c<cells.length;c++){var s=cells[c].getAttribute("data-stat");if(s)obj[s]=cells[c].textContent.trim();}data[team]=obj;}return data;}var bat=getRows(bt);var pit=pt?getRows(pt):{};var merged={};var ct=0;Object.keys(bat).forEach(function(team){var b=bat[team]||{};var p=pit[team]||{};var rpg=parseFloat(b.runs_per_game)||null;var rapg=parseFloat(p.runs_allowed_per_game)||null;var pyth=null;if(rpg&&rapg&&(rpg+rapg)>0){pyth=Math.pow(rpg,1.83)/(Math.pow(rpg,1.83)+Math.pow(rapg,1.83));}merged[team]={pyth_pct:pyth,babip:null,run_diff:rpg&&rapg?Math.round((rpg-rapg)*162):null,runs_pg:rpg,runs_allowed_pg:rapg};ct++;});var p=JSON.stringify({type:"br_team_stats",count:ct,data:merged});if(typeof copy==="function"){copy(p);console.log("DONE! "+ct+" teams copied. Paste into MLB Line Scout.");}else{console.log(p);}}catch(e){console.error("Error:",e.message);}})();';
+const BR_TEAM_SCRAPER = '(function(){try{var bt=document.getElementById("teams_standard_batting");var pt=document.getElementById("teams_standard_pitching");if(!bt){console.error("No teams_standard_batting table. Are you on baseball-reference.com/leagues/majors/2025.shtml?");return;}function grab(tbl){var rows=tbl.querySelectorAll("tbody tr");var d={};for(var r=0;r<rows.length;r++){var row=rows[r];if(row.classList.contains("thead")||row.classList.contains("stat_total"))continue;var a=row.querySelector("a");if(!a)continue;var nm=a.textContent.trim().replace(/[*+]/g,"");if(!nm)continue;var o={};var cells=row.querySelectorAll("td,th");for(var c=0;c<cells.length;c++){var s=cells[c].getAttribute("data-stat");if(s)o[s]=cells[c].textContent.trim();}d[nm]=o;}return d;}var bat=grab(bt);var pit=pt?grab(pt):{};var merged={};var ct=0;Object.keys(bat).forEach(function(team){var b=bat[team]||{};var p=pit[team]||{};var rpg=parseFloat(b.runs_per_game)||null;var rapg=parseFloat(p.runs_allowed_per_game)||null;var pyth=null;if(rpg&&rapg&&(rpg+rapg)>0)pyth=Math.pow(rpg,1.83)/(Math.pow(rpg,1.83)+Math.pow(rapg,1.83));merged[team]={runs_pg:rpg,runs_allowed_pg:rapg,pyth_pct:pyth,ops:parseFloat(b.onbase_plus_slugging)||null,slg:parseFloat(b.slugging_perc)||null,avg:parseFloat(b.batting_avg)||null,hr:parseInt(b.HR)||0,pa:parseInt(b.PA)||0,so:parseInt(b.SO)||0,era:parseFloat(p.earned_run_avg)||null,fip:parseFloat(p.fip)||null,whip:parseFloat(p.whip)||null,k9:parseFloat(p.strikeouts_per_nine)||null,bb9:parseFloat(p.bases_on_balls_per_nine)||null,hr9:parseFloat(p.home_runs_per_nine)||null};ct++;});var payload=JSON.stringify({type:"br_team_stats",count:ct,data:merged});if(typeof copy==="function"){copy(payload);console.log("DONE! "+ct+" teams copied. Paste into MLB Line Scout.");}else{console.log(payload);}}catch(e){console.error("Error:",e.message);}})();';
 
-const BR_PITCHING_SCRAPER = '(function(){try{var t=document.getElementById("teams_standard_pitching");if(!t){console.error("No teams_standard_pitching table found. Are you on baseball-reference.com/leagues/majors/2025.shtml?");return;}var rows=t.querySelectorAll("tbody tr");var data={};var ct=0;for(var r=0;r<rows.length;r++){var row=rows[r];if(row.classList.contains("thead")||row.classList.contains("stat_total"))continue;var link=row.querySelector("a");if(!link)continue;var team=link.textContent.trim().replace(/[*+]/g,"");if(!team)continue;var obj={};var cells=row.querySelectorAll("td,th");for(var c=0;c<cells.length;c++){var s=cells[c].getAttribute("data-stat");if(s)obj[s]=cells[c].textContent.trim();}data[team]={fip:parseFloat(obj.fip)||null,babip_against:null,k9:parseFloat(obj.strikeouts_per_nine)||null,bb9:parseFloat(obj.bases_on_balls_per_nine)||null,era:parseFloat(obj.earned_run_avg)||null,whip:parseFloat(obj.whip)||null,bullpen_era:null};ct++;}var p=JSON.stringify({type:"br_pitching_stats",count:ct,data:data});if(typeof copy==="function"){copy(p);console.log("DONE! "+ct+" teams. Paste into MLB Line Scout.");}else{console.log(p);}}catch(e){console.error("Error:",e.message);}})();';
+const BR_SPLITS_VS_LHP_SCRAPER = '(function(){try{var t=document.getElementById("split1");if(!t){console.error("No split1 table. Are you on the vs LHP splits page?");return;}var rows=t.querySelectorAll("tbody tr");var data={};var ct=0;for(var r=0;r<rows.length;r++){var row=rows[r];if(row.classList.contains("thead"))continue;var o={};var cells=row.querySelectorAll("td,th");for(var c=0;c<cells.length;c++){var s=cells[c].getAttribute("data-stat");if(s)o[s]=cells[c].textContent.trim();}var tm=o.team;if(!tm)continue;data[tm]={avg:parseFloat(o.batting_avg)||null,obp:parseFloat(o.onbase_perc)||null,slg:parseFloat(o.slugging_perc)||null,ops:parseFloat(o.onbase_plus_slugging)||null,hr:parseInt(o.HR)||0,so:parseInt(o.SO)||0,bb:parseInt(o.BB)||0,pa:parseInt(o.PA)||0,babip:parseFloat(o.batting_avg_bip)||null};ct++;}var payload=JSON.stringify({type:"br_splits_vs_lhp",count:ct,data:data});if(typeof copy==="function"){copy(payload);console.log("DONE! "+ct+" teams vs LHP copied. Paste into MLB Line Scout.");}else{console.log(payload);}}catch(e){console.error("Error:",e.message);}})();';
 
-const BR_BATTING_SCRAPER = '(function(){try{var t=document.getElementById("teams_standard_batting");if(!t){console.error("No teams_standard_batting table found. Are you on the right page?");return;}var rows=t.querySelectorAll("tbody tr");var data={};var ct=0;for(var r=0;r<rows.length;r++){var row=rows[r];if(row.classList.contains("thead")||row.classList.contains("stat_total"))continue;var link=row.querySelector("a");if(!link)continue;var team=link.textContent.trim().replace(/[*+]/g,"");if(!team)continue;var obj={};var cells=row.querySelectorAll("td,th");for(var c=0;c<cells.length;c++){var s=cells[c].getAttribute("data-stat");if(s)obj[s]=cells[c].textContent.trim();}var ba=parseFloat(obj.batting_avg)||null;var slg=parseFloat(obj.slugging_perc)||null;data[team]={ops:parseFloat(obj.onbase_plus_slugging)||null,slg:slg,iso:slg&&ba?Math.round((slg-ba)*1000)/1000:null,hr:parseInt(obj.HR)||0,pa:parseInt(obj.PA)||1,babip:null,wrc_plus:null};ct++;}var p=JSON.stringify({type:"br_batting_stats",count:ct,data:data});if(typeof copy==="function"){copy(p);console.log("DONE! "+ct+" teams. Paste into MLB Line Scout.");}else{console.log(p);}}catch(e){console.error("Error:",e.message);}})();';
+const BR_SPLITS_VS_RHP_SCRAPER = '(function(){try{var t=document.getElementById("split1");if(!t){console.error("No split1 table. Are you on the vs RHP splits page?");return;}var rows=t.querySelectorAll("tbody tr");var data={};var ct=0;for(var r=0;r<rows.length;r++){var row=rows[r];if(row.classList.contains("thead"))continue;var o={};var cells=row.querySelectorAll("td,th");for(var c=0;c<cells.length;c++){var s=cells[c].getAttribute("data-stat");if(s)o[s]=cells[c].textContent.trim();}var tm=o.team;if(!tm)continue;data[tm]={avg:parseFloat(o.batting_avg)||null,obp:parseFloat(o.onbase_perc)||null,slg:parseFloat(o.slugging_perc)||null,ops:parseFloat(o.onbase_plus_slugging)||null,hr:parseInt(o.HR)||0,so:parseInt(o.SO)||0,bb:parseInt(o.BB)||0,pa:parseInt(o.PA)||0,babip:parseFloat(o.batting_avg_bip)||null};ct++;}var payload=JSON.stringify({type:"br_splits_vs_rhp",count:ct,data:data});if(typeof copy==="function"){copy(payload);console.log("DONE! "+ct+" teams vs RHP copied. Paste into MLB Line Scout.");}else{console.log(payload);}}catch(e){console.error("Error:",e.message);}})();';
+const BR_PLAYER_BATTING_SCRAPER = '(function(){try{var t=document.getElementById("players_standard_batting");if(!t){console.error("No players_standard_batting table. Are you on the standard batting page?");return;}var rows=t.querySelectorAll("tbody tr");var data={};var ct=0;for(var r=0;r<rows.length;r++){var row=rows[r];if(row.classList.contains("thead"))continue;var a=row.querySelector("a");if(!a)continue;var name=a.textContent.trim();var o={};var cells=row.querySelectorAll("td,th");for(var c=0;c<cells.length;c++){var s=cells[c].getAttribute("data-stat");if(s)o[s]=cells[c].textContent.trim();}var tm=o.team_name_abbr;if(!tm||tm==="2TM"||tm==="3TM"||tm==="4TM")continue;var key=name+"__"+tm;data[key]={name:name,team:tm,pa:parseInt(o.b_pa)||0,hr:parseInt(o.b_hr)||0,avg:parseFloat(o.b_batting_avg)||null,obp:parseFloat(o.b_onbase_perc)||null,slg:parseFloat(o.b_slugging_perc)||null,ops:parseFloat(o.b_onbase_plus_slugging)||null,ops_plus:parseInt(o.b_onbase_plus_slugging_plus)||null,so:parseInt(o.b_so)||0,bb:parseInt(o.b_bb)||0,war:parseFloat(o.b_war)||null};ct++;}var payload=JSON.stringify({type:"br_player_batting",count:ct,data:data});if(typeof copy==="function"){copy(payload);console.log("DONE! "+ct+" players copied. Paste into MLB Line Scout.");}else{console.log(payload);}}catch(e){console.error("Error:",e.message);}})();';
 
 function buildSyncUI(id, title, emoji, url, scraper, pasteCallback, statusId) {
   const btn = document.getElementById(id);
@@ -1123,15 +1193,15 @@ function syncBaseballRef() {
 }
 
 function syncBaseballRefPitching() {
-  buildSyncUI('syncBRPitchBtn', 'Baseball Reference Pitching', '⚾',
-    'https://www.baseball-reference.com/leagues/majors/2025.shtml',
-    BR_PITCHING_SCRAPER, 'processBRPitchPaste', 'brPitchSyncStatus');
+  buildSyncUI('syncBRPitchBtn', 'Team Batting vs LHP', '🔄',
+    'https://www.baseball-reference.com/tools/split_stats_lg.cgi?full=1&params=plato%7Cvs+LHP%7CML%7C2025%7Cbat%7CAB%7C',
+    BR_SPLITS_VS_LHP_SCRAPER, 'processBRSplitsLHPPaste', 'brPitchSyncStatus');
 }
 
 function syncBaseballRefBatting() {
-  buildSyncUI('syncBRBatBtn', 'Baseball Reference Batting', '🏠',
-    'https://www.baseball-reference.com/leagues/majors/2025-standard-batting.shtml',
-    BR_BATTING_SCRAPER, 'processBRBatPaste', 'brBatSyncStatus');
+  buildSyncUI('syncBRBatBtn', 'Team Batting vs RHP', '🔄',
+    'https://www.baseball-reference.com/tools/split_stats_lg.cgi?full=1&params=plato%7Cvs+RHP%7CML%7C2025%7Cbat%7CAB%7C',
+    BR_SPLITS_VS_RHP_SCRAPER, 'processBRSplitsRHPPaste', 'brBatSyncStatus');
 }
 
 async function processBRTeamPaste(boxId) {
@@ -1157,7 +1227,7 @@ async function processBRTeamPaste(boxId) {
   } catch (e) { pasteStatus.textContent = '✗ JSON parse error'; pasteStatus.style.color = 'var(--red)'; }
 }
 
-async function processBRPitchPaste(boxId) {
+async function processBRSplitsLHPPaste(boxId) {
   const pasteBox = document.getElementById(boxId + '_paste');
   const pasteStatus = document.getElementById(boxId + '_status');
   const status = document.getElementById('brPitchSyncStatus');
@@ -1165,19 +1235,22 @@ async function processBRPitchPaste(boxId) {
   if (!raw) { pasteStatus.textContent = '✗ Empty'; pasteStatus.style.color = 'var(--red)'; return; }
   try {
     const payload = JSON.parse(raw);
-    if (payload.type !== 'br_pitching_stats' || !payload.data) { pasteStatus.textContent = '✗ Invalid format'; pasteStatus.style.color = 'var(--red)'; return; }
-    _brPitchStats = payload.data;
-    try { await store.set('br_pitch_stats_' + new Date().toDateString(), JSON.stringify(payload.data)); } catch (err) {}
+    if (payload.type !== 'br_splits_vs_lhp' || !payload.data) { pasteStatus.textContent = '✗ Invalid format'; pasteStatus.style.color = 'var(--red)'; return; }
+    // Convert BR abbreviations to ESPN
+    var converted = {};
+    Object.keys(payload.data).forEach(function(k) { converted[brToEspn(k)] = payload.data[k]; });
+    _brSplitsVsLHP = converted;
+    try { await store.set('br_splits_lhp_' + new Date().toDateString(), JSON.stringify(converted)); } catch (err) {}
     buildMLBStatsCache();
-    status.textContent = '✓ ' + (payload.count || Object.keys(payload.data).length) + ' teams — FIP, K/9, BABIP-against';
+    status.textContent = '✓ ' + (payload.count || Object.keys(payload.data).length) + ' teams — batting vs LHP splits';
     status.style.color = 'var(--green)';
     pasteStatus.textContent = '✓ Loaded!'; pasteStatus.style.color = 'var(--green)';
-    addLog('BR Pitching: ' + Object.keys(payload.data).length + ' teams synced', 'ok');
+    addLog('BR vs-LHP splits: ' + Object.keys(converted).length + ' teams synced', 'ok');
     document.getElementById(boxId)?.remove();
   } catch (e) { pasteStatus.textContent = '✗ JSON parse error'; pasteStatus.style.color = 'var(--red)'; }
 }
 
-async function processBRBatPaste(boxId) {
+async function processBRSplitsRHPPaste(boxId) {
   const pasteBox = document.getElementById(boxId + '_paste');
   const pasteStatus = document.getElementById(boxId + '_status');
   const status = document.getElementById('brBatSyncStatus');
@@ -1185,14 +1258,77 @@ async function processBRBatPaste(boxId) {
   if (!raw) { pasteStatus.textContent = '✗ Empty'; pasteStatus.style.color = 'var(--red)'; return; }
   try {
     const payload = JSON.parse(raw);
-    if (payload.type !== 'br_batting_stats' || !payload.data) { pasteStatus.textContent = '✗ Invalid format'; pasteStatus.style.color = 'var(--red)'; return; }
-    _brBatStats = payload.data;
-    try { await store.set('br_bat_stats_' + new Date().toDateString(), JSON.stringify(payload.data)); } catch (err) {}
+    if (payload.type !== 'br_splits_vs_rhp' || !payload.data) { pasteStatus.textContent = '✗ Invalid format'; pasteStatus.style.color = 'var(--red)'; return; }
+    var converted = {};
+    Object.keys(payload.data).forEach(function(k) { converted[brToEspn(k)] = payload.data[k]; });
+    _brSplitsVsRHP = converted;
+    try { await store.set('br_splits_rhp_' + new Date().toDateString(), JSON.stringify(converted)); } catch (err) {}
     buildMLBStatsCache();
-    status.textContent = '✓ ' + (payload.count || Object.keys(payload.data).length) + ' teams — ISO, SLG, HR/PA';
+    status.textContent = '✓ ' + (payload.count || Object.keys(payload.data).length) + ' teams — batting vs RHP splits';
     status.style.color = 'var(--green)';
     pasteStatus.textContent = '✓ Loaded!'; pasteStatus.style.color = 'var(--green)';
-    addLog('BR Batting: ' + Object.keys(payload.data).length + ' teams synced', 'ok');
+    addLog('BR vs-RHP splits: ' + Object.keys(converted).length + ' teams synced', 'ok');
+    document.getElementById(boxId)?.remove();
+  } catch (e) { pasteStatus.textContent = '✗ JSON parse error'; pasteStatus.style.color = 'var(--red)'; }
+}
+
+// BallparkPal daily park factors scraper
+const BPP_SCRAPER = '(function(){try{var tables=document.querySelectorAll("table");var t=null;for(var i=0;i<tables.length;i++){if(tables[i].querySelector("th")&&tables[i].querySelectorAll("tr").length>5){t=tables[i];break;}}if(!t){console.error("No park factors table found on this page.");return;}var headers=[];var ths=t.querySelectorAll("thead th,tr:first-child th");ths.forEach(function(th){headers.push(th.textContent.trim().toLowerCase());});var rows=t.querySelectorAll("tbody tr,tr");var data={};var ct=0;for(var r=0;r<rows.length;r++){var cells=rows[r].querySelectorAll("td");if(cells.length<3)continue;var game=cells[0]?cells[0].textContent.trim():null;if(!game)continue;var obj={game:game};for(var c=1;c<cells.length&&c<headers.length;c++){obj[headers[c]]=cells[c].textContent.trim();}data[game]=obj;ct++;}var payload=JSON.stringify({type:"bpp_park_factors",count:ct,data:data});if(typeof copy==="function"){copy(payload);console.log("DONE! "+ct+" games park factors copied.");}else{console.log(payload);}}catch(e){console.error("Error:",e.message);}})();';
+
+function syncBallparkPal() {
+  buildSyncUI('syncBPPBtn', 'BallparkPal Daily Park Factors', '🏟️',
+    'https://www.ballparkpal.com/Park-Factors.php',
+    BPP_SCRAPER, 'processBPPPaste', 'bppSyncStatus');
+}
+
+async function processBPPPaste(boxId) {
+  var pasteBox = document.getElementById(boxId + '_paste');
+  var pasteStatus = document.getElementById(boxId + '_status');
+  var status = document.getElementById('bppSyncStatus');
+  var raw = (pasteBox?.value || '').trim();
+  if (!raw) { pasteStatus.textContent = '✗ Empty'; pasteStatus.style.color = 'var(--red)'; return; }
+  try {
+    var payload = JSON.parse(raw);
+    if (payload.type !== 'bpp_park_factors' || !payload.data) { pasteStatus.textContent = '✗ Invalid format'; pasteStatus.style.color = 'var(--red)'; return; }
+    window._bppParkFactors = payload.data;
+    try { await store.set('bpp_factors_' + new Date().toDateString(), JSON.stringify(payload.data)); } catch (err) {}
+    status.textContent = '✓ ' + (payload.count || Object.keys(payload.data).length) + ' games — weather-adjusted park factors';
+    status.style.color = 'var(--green)';
+    pasteStatus.textContent = '✓ Loaded!'; pasteStatus.style.color = 'var(--green)';
+    addLog('BallparkPal: ' + Object.keys(payload.data).length + ' game park factors synced', 'ok');
+    document.getElementById(boxId)?.remove();
+  } catch (e) { pasteStatus.textContent = '✗ JSON parse error'; pasteStatus.style.color = 'var(--red)'; }
+}
+
+// Individual player batting sync
+function syncBRPlayers() {
+  buildSyncUI('syncBRPlayerBtn', 'Individual Player Batting', '👤',
+    'https://www.baseball-reference.com/leagues/majors/2025-standard-batting.shtml',
+    BR_PLAYER_BATTING_SCRAPER, 'processBRPlayerPaste', 'brPlayerSyncStatus');
+}
+
+async function processBRPlayerPaste(boxId) {
+  var pasteBox = document.getElementById(boxId + '_paste');
+  var pasteStatus = document.getElementById(boxId + '_status');
+  var status = document.getElementById('brPlayerSyncStatus');
+  var raw = (pasteBox?.value || '').trim();
+  if (!raw) { pasteStatus.textContent = '✗ Empty'; pasteStatus.style.color = 'var(--red)'; return; }
+  try {
+    var payload = JSON.parse(raw);
+    if (payload.type !== 'br_player_batting' || !payload.data) { pasteStatus.textContent = '✗ Invalid format'; pasteStatus.style.color = 'var(--red)'; return; }
+    // Convert BR team abbreviations and index by player name
+    _playerStatsCache = {};
+    Object.keys(payload.data).forEach(function(key) {
+      var p = payload.data[key];
+      p.team = brToEspn(p.team);
+      _playerStatsCache[p.name] = _playerStatsCache[p.name] || p; // keep first entry (most PA)
+    });
+    try { await store.set('br_player_batting_' + new Date().toDateString(), JSON.stringify(_playerStatsCache)); } catch (err) {}
+    var ct = Object.keys(_playerStatsCache).length;
+    status.textContent = '✓ ' + ct + ' players — OPS, HR, SLG, WAR';
+    status.style.color = 'var(--green)';
+    pasteStatus.textContent = '✓ Loaded!'; pasteStatus.style.color = 'var(--green)';
+    addLog('BR Players: ' + ct + ' individual batting stats synced', 'ok');
     document.getElementById(boxId)?.remove();
   } catch (e) { pasteStatus.textContent = '✗ JSON parse error'; pasteStatus.style.color = 'var(--red)'; }
 }
@@ -1212,19 +1348,27 @@ async function checkStatsCache() {
       }
     } catch (e) {}
   }
-  if (!_brPitchStats || !Object.keys(_brPitchStats).length) {
+  // Load platoon splits from cache
+  if (!Object.keys(_brSplitsVsLHP).length) {
     try {
-      const r = await store.get('br_pitch_stats_' + dateKey);
-      if (r) { _brPitchStats = JSON.parse(r.value); addLog('BR pitching cache loaded', 'ok'); }
+      const r = await store.get('br_splits_lhp_' + dateKey);
+      if (r) { _brSplitsVsLHP = JSON.parse(r.value); addLog('BR vs-LHP splits cache loaded', 'ok'); }
     } catch (e) {}
   }
-  if (!_brBatStats || !Object.keys(_brBatStats).length) {
+  if (!Object.keys(_brSplitsVsRHP).length) {
     try {
-      const r = await store.get('br_bat_stats_' + dateKey);
-      if (r) { _brBatStats = JSON.parse(r.value); addLog('BR batting cache loaded', 'ok'); }
+      const r = await store.get('br_splits_rhp_' + dateKey);
+      if (r) { _brSplitsVsRHP = JSON.parse(r.value); addLog('BR vs-RHP splits cache loaded', 'ok'); }
     } catch (e) {}
   }
-  if (Object.keys(_brAdvStats).length || Object.keys(_brPitchStats).length || Object.keys(_brBatStats).length) {
+  // Load player stats from cache
+  if (!Object.keys(_playerStatsCache).length) {
+    try {
+      const r = await store.get('br_player_batting_' + dateKey);
+      if (r) { _playerStatsCache = JSON.parse(r.value); addLog('BR player batting cache loaded: ' + Object.keys(_playerStatsCache).length, 'ok'); }
+    } catch (e) {}
+  }
+  if (Object.keys(_brAdvStats).length || Object.keys(_brSplitsVsLHP).length || Object.keys(_brSplitsVsRHP).length) {
     buildMLBStatsCache();
   }
 }
@@ -1291,17 +1435,7 @@ function computeSpread(g, weights) {
   }
   const recency = recencyBoost(h) - recencyBoost(a);
 
-  // ── 6. Starter rest days ───────────────────────────────────────
-  // Normal = 4 days. Short rest (3) = penalty. Extra rest (5+) = slight edge
-  const awayRest = parseFloat(g.away_starter_rest) || 4;
-  const homeRest = parseFloat(g.home_starter_rest) || 4;
-  function pitcherRestEdge(days) {
-    if (days <= 3) return -0.20; // short rest penalty
-    if (days === 4) return 0;    // normal
-    if (days >= 5) return Math.min(0.10, (days - 4) * 0.05); // slight edge for extra rest
-    return 0;
-  }
-  const rest_adj = pitcherRestEdge(homeRest) - pitcherRestEdge(awayRest);
+  // ── 6. Rest — removed (irrelevant in regular season per analysis) ──
 
   // ── 7. Site — home field + park factor ──────────────────────────
   const homeAbbr = g.homeAbbr || '';
@@ -1318,8 +1452,41 @@ function computeSpread(g, weights) {
   const interleague_adj = isInterleague ? 0.03 : 0; // slight home boost for unfamiliar opponent
   const context_adj = divisional_adj + interleague_adj;
 
-  // ── 9. Platoon (dormant at 0, placeholder) ─────────────────────
-  const platoon_adj = 0;
+  // ── 9. Platoon — team OPS vs opposing starter's handedness ─────
+  // Uses BR splits data (vs LHP / vs RHP) when available
+  function getStarterHand(starter) {
+    if (!starter || !starter.name) return 'R';
+    // Check pitcher stats cache (populated from roster fetch)
+    var ps = _espnPitcherStats[starter.name];
+    if (ps && ps.throws) return ps.throws;
+    // Check roster cache
+    for (var abbr in _espnRosterCache) {
+      var roster = _espnRosterCache[abbr] || [];
+      for (var i = 0; i < roster.length; i++) {
+        if (roster[i].name === starter.name && roster[i].throws) return roster[i].throws;
+      }
+    }
+    return 'R'; // default right-handed
+  }
+  var homeStarterHand = getStarterHand(g.away_starter); // away pitcher faces home lineup
+  var awayStarterHand = getStarterHand(g.home_starter); // home pitcher faces away lineup
+  // Look up platoon-specific OPS from BR splits
+  var awayPlatoonOPS = null, homePlatoonOPS = null;
+  if (awayStarterHand === 'L' && _brSplitsVsLHP[g.homeAbbr]) {
+    homePlatoonOPS = _brSplitsVsLHP[g.homeAbbr].ops;
+  } else if (awayStarterHand === 'R' && _brSplitsVsRHP[g.homeAbbr]) {
+    homePlatoonOPS = _brSplitsVsRHP[g.homeAbbr].ops;
+  }
+  if (homeStarterHand === 'L' && _brSplitsVsLHP[g.awayAbbr]) {
+    awayPlatoonOPS = _brSplitsVsLHP[g.awayAbbr].ops;
+  } else if (homeStarterHand === 'R' && _brSplitsVsRHP[g.awayAbbr]) {
+    awayPlatoonOPS = _brSplitsVsRHP[g.awayAbbr].ops;
+  }
+  // Use platoon OPS when available, otherwise fall back to overall
+  var aPlatOPS = awayPlatoonOPS || aOPS;
+  var hPlatOPS = homePlatoonOPS || hOPS;
+  var platoon_adj = (hPlatOPS - aPlatOPS) * 6.0;
+  var hasPlatoonData = !!(awayPlatoonOPS || homePlatoonOPS);
 
   // ── DORMANT COMPONENTS ─────────────────────────────────────────
 
@@ -1338,15 +1505,14 @@ function computeSpread(g, weights) {
   const bullpen_fatigue_adj = 0;
 
   // ── Weighted sum ────────────────────────────────────────────────
-  const raw = base         * (w('base')      / 0.22 || 0)
-    + starter_edge         * (w('starter')   / 0.28 || 0)
+  const raw = base         * (w('base')      / 0.18 || 0)
+    + starter_edge         * (w('starter')   / 0.25 || 0)
+    + platoon_adj          * (w('platoon')   / 0.18 || 0)
     + bullpen_edge         * (w('bullpen')   / 0.12 || 0)
-    + lineup_edge          * (w('lineup')    / 0.10 || 0)
-    + recency              * (w('recency')   / 0.08 || 0)
-    + rest_adj             * (w('rest')      / 0.06 || 0)
-    + site                 * (w('site')      / 0.06 || 0)
-    + context_adj          * (w('context')   / 0.04 || 0)
-    + platoon_adj          * (w('platoon')   / 0.04 || 0)
+    + lineup_edge          * (w('lineup')    / 0.08 || 0)
+    + site                 * (w('park')      / 0.08 || 0)
+    + recency              * (w('recency')   / 0.06 || 0)
+    + context_adj          * (w('context')   / 0.05 || 0)
     + (w('babip_regression') > 0 ? babip_adj * (w('babip_regression') / 0.05) : 0)
     + (w('bullpen_fatigue') > 0 ? bullpen_fatigue_adj * (w('bullpen_fatigue') / 0.05) : 0);
 
@@ -1396,6 +1562,9 @@ function computeSpread(g, weights) {
     mktNum, mktFavName, edge: Math.round(edge * 1000) / 1000,
     ml_lean, ml_confidence, babipFlag, parkFactor,
     starterConfDiscount: confDiscount, isDivisional, isInterleague,
+    hasPlatoonData: hasPlatoonData,
+    awayPlatoonOPS: aPlatOPS, homePlatoonOPS: hPlatOPS,
+    awayStarterHand: awayStarterHand, homeStarterHand: homeStarterHand,
     projectedTotal: Math.round(projectedTotal * 10) / 10,
     totalsEdge: Math.round(totalsEdge * 100) / 100,
     totalsLean, parkAdj: Math.round(parkAdj * 100) / 100,
@@ -1404,7 +1573,7 @@ function computeSpread(g, weights) {
       bullpen: +bullpen_edge.toFixed(3), lineup: +lineup_edge.toFixed(3),
       recency: +recency.toFixed(3), rest: +rest_adj.toFixed(3),
       site: +site.toFixed(3), context: +context_adj.toFixed(3),
-      platoon: +platoon_adj.toFixed(3),
+      platoon: +platoon_adj.toFixed(3), park_factor: +(parkFactor).toFixed(3),
       babip_regression: +babip_adj.toFixed(3), bullpen_fatigue: +bullpen_fatigue_adj.toFixed(3),
     },
     starterDetail: {
@@ -2249,7 +2418,7 @@ async function runPostmortem() {
       return { date: g.date, matchup: g.away + ' @ ' + g.home, model_error: modelError, verdict: g.verdict, ats_result: g.ats_result, components: g.components || {} };
     }).filter(function (e) { return e.model_error !== null; });
 
-    const compKeys = ['base', 'starter', 'bullpen', 'lineup', 'recency', 'rest', 'site', 'context', 'platoon', 'babip_regression', 'bullpen_fatigue'];
+    const compKeys = ['base', 'starter', 'platoon', 'bullpen', 'lineup', 'site', 'recency', 'context', 'babip_regression', 'bullpen_fatigue'];
     const compStats = {};
     compKeys.forEach(function (k) {
       const vals = errors.filter(function (e) { return e.components[k] != null; });
@@ -2375,7 +2544,7 @@ async function renderHistoryFromStorage() { await refreshArchivePicker(); update
 
 (async () => {
   try {
-    addLog('MLB Line Scout v1 initialized. Fetching data...', 'ok');
+    addLog('MLB Line Scout v2 initialized. Fetching data...', 'ok');
     const dateInput = document.getElementById('slateDate');
     if (dateInput) dateInput.value = new Date().toISOString().slice(0, 10);
     const cfg = await loadConfig();

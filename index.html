@@ -499,7 +499,7 @@
           <input type="checkbox" id="filterOddsOnly" checked onchange="applyESPNFilter()" style="accent-color:var(--green)"> Lines available
         </label>
         <label style="display:flex;align-items:center;gap:5px;font-size:11px;font-family:var(--mono);color:var(--text3);cursor:pointer">
-          <input type="checkbox" id="filterPreOnly" checked onchange="applyESPNFilter()" style="accent-color:var(--green)"> Upcoming only
+          <input type="checkbox" id="filterPreOnly" onchange="applyESPNFilter()" style="accent-color:var(--green)"> Upcoming only
         </label>
         <span style="font-size:10px;font-family:var(--mono);color:var(--text3)" id="slateStatus"></span>
       </div>
@@ -1922,7 +1922,7 @@ async function runAgent(slateOverride) {
         const filtered = _espnRawGames.filter(function (g) {
           if (document.getElementById('filterTourney')?.checked && !g.isPlayoffs) return false;
           if (document.getElementById('filterOddsOnly')?.checked && !g.spread) return false;
-          if (g.state === 'post') return false;
+          // Don't filter out started/completed games — analyze the full day's slate
           return true;
         });
         if (!filtered.length) {

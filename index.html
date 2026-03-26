@@ -904,17 +904,24 @@ function fuzzyFind(dict, name) {
 
 function buildMLBStatsCache() {
   const merged = {};
+  // First, index all teams we know about from ESPN (gives us abbr mapping)
+  const teamNames = new Set();
   for (const [abbr, t] of Object.entries(_espnTeamStats)) {
     const fullName = t.name || ESPN_TO_FULL_NAME[abbr] || abbr;
+    teamNames.add(fullName);
     const br = _brAdvStats[fullName] || {};
-    const gamesPlayed = t.games || 1;
-    // BR scraper now provides both batting + pitching in one object
-    // Prefer BR data where available, fall back to ESPN
-    const runsPg = br.runs_pg || t.runs_pg || null;
-    const runsAllowedPg = br.runs_allowed_pg || t.runs_allowed_pg || null;
+    const gamesPlayed = t.games || br.games || 1;
+    
+    // BR is primary source when ESPN has no data (early season)
+    // ESPN overrides BR once the current season has games
+    const hasESPNData = t.games && t.games > 0;
+    const runsPg = hasESPNData ? (t.runs_pg || br.runs_pg) : (br.runs_pg || t.runs_pg || null);
+    const runsAllowedPg = hasESPNData ? (t.runs_allowed_pg || br.runs_allowed_pg) : (br.runs_allowed_pg || t.runs_allowed_pg || null);
+    
     const pyth = (runsPg && runsAllowedPg && runsPg + runsAllowedPg > 0)
       ? Math.pow(runsPg, 1.83) / (Math.pow(runsPg, 1.83) + Math.pow(runsAllowedPg, 1.83)) : null;
     const actualWinPct = (t.wins != null && gamesPlayed > 0) ? t.wins / gamesPlayed : null;
+    
     merged[fullName] = {
       era: br.era || t.era || null,
       ops: br.ops || t.ops || null,
@@ -929,7 +936,6 @@ function buildMLBStatsCache() {
       win_pct: actualWinPct,
       pyth_win_pct: br.pyth_pct || pyth,
       luck_delta: (actualWinPct != null && (br.pyth_pct || pyth) != null) ? actualWinPct - (br.pyth_pct || pyth) : null,
-      // BR advanced pitching
       fip: br.fip || null,
       k9: br.k9 || null,
       bb9: br.bb9 || null,
@@ -937,13 +943,23 @@ function buildMLBStatsCache() {
       babip: br.babip || null,
       babip_against: null,
       run_diff: br.run_diff || null,
-      // BR batting detail
-      slg: br.slg || t.ops ? (parseFloat(t.ops) * 0.55) : null,
+      slg: br.slg || (t.ops ? parseFloat(t.ops) * 0.55 : null),
       iso: null,
       wrc_plus: null,
-      hr_pa: (br.hr || t.hr) && (br.pa || t.games) ? (br.hr || t.hr) / ((br.pa || t.games * 38) || 1) : null,
+      hr_pa: (br.hr || t.hr) && (br.pa || gamesPlayed * 38) ? (br.hr || t.hr || 0) / (br.pa || gamesPlayed * 38) : null,
       team_ops: br.ops || t.ops || null,
     };
+  }
+  // Also add any BR teams not in ESPN (shouldn't happen but safety net)
+  for (const [name, br] of Object.entries(_brAdvStats)) {
+    if (!teamNames.has(name) && !merged[name]) {
+      merged[name] = {
+        era: br.era, ops: br.ops, runs_pg: br.runs_pg, runs_allowed_pg: br.runs_allowed_pg,
+        hr: br.hr, batting_avg: br.avg, whip: br.whip, fip: br.fip, k9: br.k9, bb9: br.bb9,
+        pyth_win_pct: br.pyth_pct, babip: br.babip, run_diff: br.run_diff,
+        slg: br.slg, team_ops: br.ops, abbr: null, games: 162,
+      };
+    }
   }
   _mlbStatsCache = merged;
   _mlbStatsCacheDate = new Date().toDateString();

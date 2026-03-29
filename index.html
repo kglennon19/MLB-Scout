@@ -2484,19 +2484,146 @@ async function runPostmortem() {
       '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 16px;text-align:center"><div style="font-family:var(--mono);font-size:18px;font-weight:700">' + allTimeMAE.toFixed(2) + 'r</div><div style="font-size:10px;color:var(--text3);text-transform:uppercase">MAE</div></div>' +
       '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 16px;text-align:center"><div style="font-family:var(--mono);font-size:18px;font-weight:700;color:' + trendColor + '">' + maeTrend + '</div><div style="font-size:10px;color:var(--text3);text-transform:uppercase">Trend</div></div>' +
       '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 16px;text-align:center"><div style="font-family:var(--mono);font-size:18px;font-weight:700">' + record + '</div><div style="font-size:10px;color:var(--text3);text-transform:uppercase">ATS</div></div></div>' +
-      '<div class="table-scroll"><table class="data-table"><thead><tr><th>Component</th><th>N</th><th>Avg Value</th><th>MAE</th><th>Pearson r</th><th>Signal</th></tr></thead><tbody>' +
+      '<div class="table-scroll"><table class="data-table"><thead><tr><th>Component</th><th>N</th><th>Avg Value</th><th>MAE</th><th>Pearson r</th><th>Signal</th><th>Suggested Δ</th></tr></thead><tbody>' +
       compKeys.map(function (k) {
         const cs = compStats[k]; if (!cs) return '';
         const signal = cs.pearson > 0.1 ? 'UNDERWEIGHTED' : cs.pearson < -0.1 ? 'OVERWEIGHTED' : 'OK';
         const sigColor = signal === 'OK' ? 'var(--green)' : signal === 'UNDERWEIGHTED' ? 'var(--amber)' : 'var(--red)';
-        return '<tr><td>' + k + '</td><td>' + cs.n + '</td><td>' + cs.avgComp + '</td><td>' + cs.mae + '</td><td>' + cs.pearson + '</td><td style="color:' + sigColor + ';font-weight:700">' + signal + '</td></tr>';
+        // Compute suggested weight nudge: proportional to Pearson, capped at ±3% per cycle
+        var nudge = 0;
+        if (Math.abs(cs.pearson) > 0.1) {
+          nudge = Math.round(cs.pearson * 5); // 0.3 Pearson ≈ +1.5% → rounds to +2%
+          nudge = Math.max(-3, Math.min(3, nudge)); // cap ±3% per cycle
+        }
+        cs.nudge = nudge;
+        var nudgeStr = nudge === 0 ? '—' : (nudge > 0 ? '+' + nudge + '%' : nudge + '%');
+        var nudgeColor = nudge > 0 ? 'var(--green)' : nudge < 0 ? 'var(--red)' : 'var(--text3)';
+        return '<tr><td>' + k + '</td><td>' + cs.n + '</td><td>' + cs.avgComp + '</td><td>' + cs.mae + '</td><td>' + cs.pearson + '</td><td style="color:' + sigColor + ';font-weight:700">' + signal + '</td><td style="color:' + nudgeColor + ';font-weight:600">' + nudgeStr + '</td></tr>';
       }).join('') + '</tbody></table></div>';
+
+    // Store compStats globally so the apply button can use them
+    window.__lastPostmortemStats = compStats;
+    window.__lastPostmortemMAE = allTimeMAE;
+
+    // Build suggested weights preview
+    var cfg = await loadConfig();
+    var currentWeights = {};
+    var suggestedWeights = {};
+    var anyChange = false;
+    for (var wk of Object.keys(DEFAULT_WEIGHTS)) {
+      var cur = (cfg.weights[wk] && cfg.weights[wk].value) || DEFAULT_WEIGHTS[wk].value;
+      currentWeights[wk] = cur;
+      var cs2 = compStats[wk];
+      var nudge2 = cs2 ? (cs2.nudge || 0) : 0;
+      suggestedWeights[wk] = Math.max(0, Math.min(50, cur + nudge2));
+      if (nudge2 !== 0) anyChange = true;
+    }
+    // Normalize suggested weights to sum to 100
+    var sugTotal = Object.values(suggestedWeights).reduce(function(a,b){return a+b;},0);
+    if (sugTotal !== 100 && sugTotal > 0) {
+      // Distribute the difference across active (non-zero) components proportionally
+      var diff = 100 - sugTotal;
+      var activeKeys = Object.keys(suggestedWeights).filter(function(k){return suggestedWeights[k] > 0;});
+      var perKey = Math.round(diff / activeKeys.length);
+      for (var i = 0; i < activeKeys.length; i++) {
+        if (i === activeKeys.length - 1) {
+          suggestedWeights[activeKeys[i]] += (100 - Object.values(suggestedWeights).reduce(function(a,b){return a+b;},0));
+        } else {
+          suggestedWeights[activeKeys[i]] += perKey;
+        }
+        suggestedWeights[activeKeys[i]] = Math.max(0, suggestedWeights[activeKeys[i]]);
+      }
+    }
+
+    if (anyChange) {
+      container.innerHTML += '<div class="divider"></div>' +
+        '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:10px">Suggested Weight Adjustments</div>' +
+        '<div style="font-size:11px;font-family:var(--mono);color:var(--text3);margin-bottom:12px;line-height:1.8">Based on Pearson correlation analysis of ' + errors.length + ' games. Nudges capped at ±3% per cycle.</div>' +
+        '<div class="table-scroll"><table class="data-table"><thead><tr><th>Component</th><th>Current</th><th>Suggested</th><th>Change</th></tr></thead><tbody>' +
+        Object.keys(DEFAULT_WEIGHTS).map(function(k) {
+          var cur = currentWeights[k];
+          var sug = suggestedWeights[k];
+          var d = sug - cur;
+          if (d === 0) return '<tr><td>' + k + '</td><td>' + cur + '%</td><td>' + sug + '%</td><td style="color:var(--text3)">—</td></tr>';
+          return '<tr><td>' + k + '</td><td>' + cur + '%</td><td style="font-weight:700;color:var(--text)">' + sug + '%</td><td style="color:' + (d > 0 ? 'var(--green)' : 'var(--red)') + ';font-weight:700">' + (d > 0 ? '+' : '') + d + '%</td></tr>';
+        }).join('') +
+        '</tbody></table></div>' +
+        '<div style="margin-top:12px;display:flex;gap:10px;align-items:center">' +
+        '<button class="btn-sm primary" onclick="applyPostmortemWeights()" style="font-size:12px;padding:9px 18px">⚡ Apply Suggested Weights</button>' +
+        '<span style="font-size:10px;font-family:var(--mono);color:var(--text3)">Updates Model Config and logs the change</span>' +
+        '</div>';
+    }
+
     status.textContent = '✓ ' + errors.length + ' games'; status.style.color = 'var(--green)';
   } catch (e) {
     container.innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div>' + e.message + '</div>';
     status.textContent = '✗ Error'; status.style.color = 'var(--red)';
   }
   btn.disabled = false;
+}
+
+// Apply suggested weights from post-mortem analysis
+async function applyPostmortemWeights() {
+  if (!window.__lastPostmortemStats) { alert('Run post-mortem first.'); return; }
+  var compStats = window.__lastPostmortemStats;
+  var maeBefore = window.__lastPostmortemMAE;
+  var cfg = await loadConfig();
+  var weightsBefore = {};
+  var weightsAfter = {};
+
+  for (var k of Object.keys(DEFAULT_WEIGHTS)) {
+    var cur = (cfg.weights[k] && cfg.weights[k].value) || DEFAULT_WEIGHTS[k].value;
+    weightsBefore[k] = cur;
+    var cs = compStats[k];
+    var nudge = cs ? (cs.nudge || 0) : 0;
+    weightsAfter[k] = Math.max(0, Math.min(50, cur + nudge));
+  }
+
+  // Normalize to 100
+  var total = Object.values(weightsAfter).reduce(function(a,b){return a+b;},0);
+  if (total !== 100 && total > 0) {
+    var diff = 100 - total;
+    var active = Object.keys(weightsAfter).filter(function(k){return weightsAfter[k] > 0;});
+    var per = Math.round(diff / active.length);
+    for (var i = 0; i < active.length; i++) {
+      if (i === active.length - 1) weightsAfter[active[i]] += (100 - Object.values(weightsAfter).reduce(function(a,b){return a+b;},0));
+      else weightsAfter[active[i]] += per;
+      weightsAfter[active[i]] = Math.max(0, weightsAfter[active[i]]);
+    }
+  }
+
+  // Apply to config
+  var newWeights = {};
+  for (var k of Object.keys(DEFAULT_WEIGHTS)) {
+    newWeights[k] = { label: DEFAULT_WEIGHTS[k].label, value: weightsAfter[k] };
+  }
+  cfg.weights = newWeights;
+  await store.set('model_config', JSON.stringify(cfg));
+
+  // Log the weight change
+  var delta = {};
+  for (var k of Object.keys(weightsAfter)) {
+    var d = weightsAfter[k] - weightsBefore[k];
+    if (d !== 0) delta[k] = d;
+  }
+  try {
+    var changelog = [];
+    var clr = await store.get('weight_changelog');
+    if (clr) changelog = JSON.parse(clr.value);
+    changelog.push({
+      applied_at: new Date().toISOString(), source: 'post-mortem',
+      weights_before: weightsBefore, weights_after: weightsAfter, delta: delta,
+      mae_before: maeBefore, mae_after: null,
+      games_under_old_weights: 0, games_under_new_weights: 0, verdict: null,
+    });
+    await store.set('weight_changelog', JSON.stringify(changelog));
+  } catch (e) {}
+
+  // Update the UI
+  initWeightEditor();
+  renderWeightChangelog();
+  addLog('Post-mortem weights applied: ' + Object.entries(delta).map(function(e){return e[0] + (e[1]>0?'+':'')+e[1]+'%';}).join(', '), 'ok');
+  alert('Weights updated from post-mortem analysis. Check Model Config tab.');
 }
 
 // ═══════════════════════════════════════════════════════════════════

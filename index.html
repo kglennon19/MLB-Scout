@@ -649,13 +649,12 @@ const state = { running: false, lastRun: null, todayGames: [], todayPicks: [], e
 
 // ─── WEIGHTS ────────────────────────────────────────────────────────
 const DEFAULT_WEIGHTS = {
-  starter:     { label: 'Starting pitcher ERA/FIP edge',       value: 25 },
-  base:        { label: 'Pythagorean expectancy edge',         value: 18 },
-  platoon:     { label: 'Platoon splits (lineup vs hand)',     value: 18 },
+  starter:     { label: 'Starting pitcher quality edge',       value: 28 },
+  batting:     { label: 'Batting edge (platoon-adjusted)',     value: 25 },
+  base:        { label: 'Pythagorean expectancy edge',         value: 20 },
   bullpen:     { label: 'Bullpen ERA differential',            value: 12 },
-  lineup:      { label: 'Lineup quality (actual roster)',      value: 8  },
-  park:        { label: 'Park factor interaction',             value: 8  },
-  recency:     { label: 'Recency (last-5 scoring rate)',       value: 6  },
+  park:        { label: 'Park factor interaction',             value: 5  },
+  recency:     { label: 'Recency (last-5 scoring rate)',       value: 5  },
   context:     { label: 'Context (day/night, IL, division)',   value: 5  },
   // Dormant
   babip_regression: { label: 'Pitcher BABIP regression',       value: 0  },
@@ -1406,10 +1405,13 @@ async function checkStatsCache() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// CORE FORMULA — MLB v1
-// Components: base(pyth), starter, bullpen, lineup, recency,
-//             rest, site(park factor), context, platoon
-// Dormant:    babip_regression, bullpen_fatigue
+// CORE FORMULA — MLB v2 (math audit rebuild)
+// Changes from v1:
+//   1. Lineup + platoon merged into single 'batting' component
+//   2. Weights are simple multipliers: component * weight_pct
+//   3. Park factor scales offensive components (not just totals)
+//   4. Scaling constants documented with derivation
+//   5. All components output in runs (consistent units)
 // ═══════════════════════════════════════════════════════════════════
 
 function computeSpread(g, weights) {
@@ -1417,7 +1419,17 @@ function computeSpread(g, weights) {
   const wt = weights || {};
   const w = function (key) { return ((wt[key] && wt[key].value) || 0) / 100; };
 
-  // ── 1. Base — Pythagorean W% edge ──────────────────────────────
+  // ── Park factor (used to scale offensive components) ──────────
+  const homeAbbr = g.homeAbbr || '';
+  const parkFactor = PARK_FACTORS[homeAbbr] || 1.00;
+  // Park amplifies offensive differences: a .050 OPS gap matters more at Coors
+  const parkOffenseScale = 1.0 + (parkFactor - 1.0) * 0.5; // half the park effect applies to spread
+
+  // ── 1. BASE — Pythagorean W% edge ────────────────────────────
+  // Derivation: .550 Pyth team ≈ 89 wins, .450 ≈ 73 wins
+  // Per-game edge: (89-73)/162 ≈ 0.099 win probability gap
+  // In runs: ~0.5 runs per game for a .100 Pyth gap
+  // So scaling = 5.0 runs per 1.0 W% diff
   function pythProxy(stats) {
     if (stats.pyth_win_pct != null) return parseFloat(stats.pyth_win_pct);
     const rpg = parseFloat(stats.runs_pg) || 4.5;
@@ -1425,10 +1437,12 @@ function computeSpread(g, weights) {
     return (rpg + rapg) > 0 ? Math.pow(rpg, 1.83) / (Math.pow(rpg, 1.83) + Math.pow(rapg, 1.83)) : 0.5;
   }
   const aPyth = pythProxy(a), hPyth = pythProxy(h);
-  const pythDiff = (hPyth - aPyth); // positive = home better
-  const base = pythDiff * 8.0; // ~8 runs per 1.0 W% difference over a game
+  const base = (hPyth - aPyth) * 5.0; // positive = home better
 
-  // ── 2. Starter — ERA/FIP edge × innings proxy ──────────────────
+  // ── 2. STARTER — pitcher quality edge ────────────────────────
+  // Derivation: ERA is runs per 9 innings. Starter pitches ~6 IP.
+  // 1.0 ERA gap over 6 IP = 6/9 * 1.0 = 0.667 run differential
+  // But ERA includes defense/luck, so discount to ~0.45 per 1.0 ERA
   const awayStarter = g.away_starter || {};
   const homeStarter = g.home_starter || {};
   function getStarterERA(starter) {
@@ -1441,88 +1455,87 @@ function computeSpread(g, weights) {
   }
   const awayP = getStarterERA(awayStarter);
   const homeP = getStarterERA(homeStarter);
-
   const confDiscount = (awayStarter.confidence === 'Confirmed' || awayStarter.confidence === 'confirmed') &&
                        (homeStarter.confidence === 'Confirmed' || homeStarter.confidence === 'confirmed') ? 1.0 : 0.65;
+  // positive = home pitcher better (lower ERA)
+  const starter_edge = (awayP.era - homeP.era) * 0.45 * confDiscount;
 
-  // ERA differential: lower ERA = better. 1.0 ERA diff ≈ 0.40 runs/game
-  const era_diff = (awayP.era - homeP.era); // positive = home pitcher better (lower ERA)
-  const starter_edge = era_diff * 0.40 * confDiscount;
-
-  // ── 3. Bullpen ERA differential ─────────────────────────────────
-  const aBullpen = parseFloat(a.bullpen_era || a.era) || 4.00;
-  const hBullpen = parseFloat(h.bullpen_era || h.era) || 4.00;
-  const bullpen_edge = (aBullpen - hBullpen) * 0.15; // ~3 innings of bullpen
-
-  // ── 4. Lineup OPS edge ──────────────────────────────────────────
-  const aOPS = parseFloat(a.team_ops || a.ops) || 0.720;
-  const hOPS = parseFloat(h.team_ops || h.ops) || 0.720;
-  const lineup_edge = (hOPS - aOPS) * 6.0; // OPS differential × scaling
-
-  // ── 5. Recency — last-10 scoring rate vs season ─────────────────
-  function recencyBoost(stats) {
-    const season = parseFloat(stats.runs_pg) || 4.5;
-    const recent = parseFloat(stats.recent_rpg) || season;
-    return Math.max(-0.35, Math.min(0.35, (recent - season) * 0.5));
-  }
-  const recency = recencyBoost(h) - recencyBoost(a);
-
-  // ── 6. Rest — removed (irrelevant in regular season per analysis) ──
-
-  // ── 7. Site — home field + park factor ──────────────────────────
-  const homeAbbr = g.homeAbbr || '';
-  const parkFactor = PARK_FACTORS[homeAbbr] || 1.00;
-  const homeAdv = (g.neutral_site || g.neutral) ? 0 : 0.10;
-  const site = homeAdv; // park factor applied to totals, not spread
-
-  // ── 8. Context — travel, day/night, interleague ─────────────────
-  const awayDiv = DIVISION_MAP[g.awayAbbr] || '';
-  const homeDiv = DIVISION_MAP[g.homeAbbr] || '';
-  const isDivisional = awayDiv && homeDiv && awayDiv === homeDiv;
-  const isInterleague = awayDiv && homeDiv && awayDiv.slice(0,2) !== homeDiv.slice(0,2);
-  const divisional_adj = isDivisional ? -0.05 : 0;
-  const interleague_adj = isInterleague ? 0.03 : 0; // slight home boost for unfamiliar opponent
-  const context_adj = divisional_adj + interleague_adj;
-
-  // ── 9. Platoon — team OPS vs opposing starter's handedness ─────
-  // Uses BR splits data (vs LHP / vs RHP) when available
+  // ── 3. BATTING — merged lineup + platoon (park-adjusted) ─────
+  // Uses platoon splits when available, overall OPS when not.
+  // ONE component, not two. Platoon IS the better lineup measure.
+  //
+  // Derivation: .050 OPS gap ≈ 0.25 runs per game historically
+  // So scaling = 5.0 runs per 1.0 OPS diff
+  // Park factor amplifies: at Coors (1.35), offensive gaps widen
   function getStarterHand(starter) {
     if (!starter || !starter.name) return 'R';
-    // Check pitcher stats cache (populated from roster fetch)
     var ps = _espnPitcherStats[starter.name];
     if (ps && ps.throws) return ps.throws;
-    // Check roster cache
     for (var abbr in _espnRosterCache) {
       var roster = _espnRosterCache[abbr] || [];
       for (var i = 0; i < roster.length; i++) {
         if (roster[i].name === starter.name && roster[i].throws) return roster[i].throws;
       }
     }
-    return 'R'; // default right-handed
+    return 'R';
   }
   var homeStarterHand = getStarterHand(g.away_starter); // away pitcher faces home lineup
   var awayStarterHand = getStarterHand(g.home_starter); // home pitcher faces away lineup
-  // Look up platoon-specific OPS from BR splits
-  var awayPlatoonOPS = null, homePlatoonOPS = null;
-  if (awayStarterHand === 'L' && _brSplitsVsLHP[g.homeAbbr]) {
-    homePlatoonOPS = _brSplitsVsLHP[g.homeAbbr].ops;
-  } else if (awayStarterHand === 'R' && _brSplitsVsRHP[g.homeAbbr]) {
-    homePlatoonOPS = _brSplitsVsRHP[g.homeAbbr].ops;
-  }
+
+  // Get the best available OPS for each lineup vs this specific starter hand
+  const aOPS = parseFloat(a.team_ops || a.ops) || 0.720;
+  const hOPS = parseFloat(h.team_ops || h.ops) || 0.720;
+  var awayBattingOPS = aOPS, homeBattingOPS = hOPS;
+  var hasPlatoonData = false;
+
   if (homeStarterHand === 'L' && _brSplitsVsLHP[g.awayAbbr]) {
-    awayPlatoonOPS = _brSplitsVsLHP[g.awayAbbr].ops;
+    awayBattingOPS = _brSplitsVsLHP[g.awayAbbr].ops;
+    hasPlatoonData = true;
   } else if (homeStarterHand === 'R' && _brSplitsVsRHP[g.awayAbbr]) {
-    awayPlatoonOPS = _brSplitsVsRHP[g.awayAbbr].ops;
+    awayBattingOPS = _brSplitsVsRHP[g.awayAbbr].ops;
+    hasPlatoonData = true;
   }
-  // Use platoon OPS when available, otherwise fall back to overall
-  var aPlatOPS = awayPlatoonOPS || aOPS;
-  var hPlatOPS = homePlatoonOPS || hOPS;
-  var platoon_adj = (hPlatOPS - aPlatOPS) * 6.0;
-  var hasPlatoonData = !!(awayPlatoonOPS || homePlatoonOPS);
+  if (awayStarterHand === 'L' && _brSplitsVsLHP[g.homeAbbr]) {
+    homeBattingOPS = _brSplitsVsLHP[g.homeAbbr].ops;
+    hasPlatoonData = true;
+  } else if (awayStarterHand === 'R' && _brSplitsVsRHP[g.homeAbbr]) {
+    homeBattingOPS = _brSplitsVsRHP[g.homeAbbr].ops;
+    hasPlatoonData = true;
+  }
+
+  const batting_edge = (homeBattingOPS - awayBattingOPS) * 5.0 * parkOffenseScale;
+
+  // ── 4. BULLPEN — team bullpen ERA differential ───────────────
+  // Derivation: bullpen pitches ~3 IP per game
+  // 1.0 ERA gap over 3 IP = 3/9 * 1.0 = 0.333 runs
+  // Scale: 0.33 per 1.0 ERA diff
+  const aBullpen = parseFloat(a.bullpen_era || a.era) || 4.00;
+  const hBullpen = parseFloat(h.bullpen_era || h.era) || 4.00;
+  const bullpen_edge = (aBullpen - hBullpen) * 0.33;
+
+  // ── 5. PARK — direct park factor edge on spread ──────────────
+  // Park effect on spread is small: both teams benefit equally from hitter parks.
+  // But the home team has familiarity advantage in extreme parks.
+  // At Coors (1.35): home team gains ~0.10-0.15 extra runs from park familiarity
+  const parkSpreadEdge = (parkFactor - 1.0) * 0.4; // 0.14 runs at Coors, -0.04 at Oracle
+
+  // ── 6. RECENCY — recent scoring rate vs season ───────────────
+  function recencyBoost(stats) {
+    const season = parseFloat(stats.runs_pg) || 4.5;
+    const recent = parseFloat(stats.recent_rpg) || season;
+    return Math.max(-0.30, Math.min(0.30, (recent - season) * 0.4));
+  }
+  const recency = recencyBoost(h) - recencyBoost(a);
+
+  // ── 7. CONTEXT — home advantage + divisional + interleague ───
+  const homeAdv = (g.neutral_site || g.neutral) ? 0 : 0.10;
+  const awayDiv = DIVISION_MAP[g.awayAbbr] || '';
+  const homeDiv = DIVISION_MAP[g.homeAbbr] || '';
+  const isDivisional = awayDiv && homeDiv && awayDiv === homeDiv;
+  const isInterleague = awayDiv && homeDiv && awayDiv.slice(0,2) !== homeDiv.slice(0,2);
+  const context_adj = homeAdv + (isDivisional ? -0.05 : 0) + (isInterleague ? 0.03 : 0);
 
   // ── DORMANT COMPONENTS ─────────────────────────────────────────
-
-  // 10. BABIP regression (replaces PDO)
   const aBabip = parseFloat(a.babip_against || a.babip) || 0.300;
   const hBabip = parseFloat(h.babip_against || h.babip) || 0.300;
   function babipRegression(babip, gamesPlayed) {
@@ -1532,21 +1545,21 @@ function computeSpread(g, weights) {
     return Math.max(-0.30, Math.min(0.30, -excess * 2.5 * seasonRemaining));
   }
   const babip_adj = babipRegression(hBabip, h.games) - babipRegression(aBabip, a.games);
-
-  // 11. Bullpen fatigue (placeholder)
   const bullpen_fatigue_adj = 0;
 
-  // ── Weighted sum ────────────────────────────────────────────────
-  const raw = base         * (w('base')      / 0.18 || 0)
-    + starter_edge         * (w('starter')   / 0.25 || 0)
-    + platoon_adj          * (w('platoon')   / 0.18 || 0)
-    + bullpen_edge         * (w('bullpen')   / 0.12 || 0)
-    + lineup_edge          * (w('lineup')    / 0.08 || 0)
-    + site                 * (w('park')      / 0.08 || 0)
-    + recency              * (w('recency')   / 0.06 || 0)
-    + context_adj          * (w('context')   / 0.05 || 0)
-    + (w('babip_regression') > 0 ? babip_adj * (w('babip_regression') / 0.05) : 0)
-    + (w('bullpen_fatigue') > 0 ? bullpen_fatigue_adj * (w('bullpen_fatigue') / 0.05) : 0);
+  // ── WEIGHTED SUM — simple: each component * its weight ───────
+  // Each component already outputs in runs. Weight is a percentage.
+  // At 100% total weight, the sum = full model output.
+  const raw =
+      base            * w('base')
+    + starter_edge    * w('starter')
+    + batting_edge    * w('batting')
+    + bullpen_edge    * w('bullpen')
+    + parkSpreadEdge  * w('park')
+    + recency         * w('recency')
+    + context_adj     * w('context')
+    + babip_adj       * w('babip_regression')
+    + bullpen_fatigue_adj * w('bullpen_fatigue');
 
   // Determine fav/dog
   const favIsHome = raw >= 0;
@@ -1568,24 +1581,21 @@ function computeSpread(g, weights) {
   const ml_lean = Math.abs(raw) > 0.05 ? (favIsHome ? 'HOME' : 'AWAY') : 'EVEN';
   const ml_confidence = Math.abs(raw) >= 0.4 ? 'HIGH' : Math.abs(raw) >= 0.2 ? 'MED' : 'LOW';
 
-  // ── TOTALS MODEL — park factor adjusted ─────────────────────────
+  // ── TOTALS MODEL — park factor adjusted, both sides ──────────
   const awayRPG = parseFloat(a.runs_pg) || 4.5;
   const awayRAPG = parseFloat(a.runs_allowed_pg) || 4.5;
   const homeRPG = parseFloat(h.runs_pg) || 4.5;
   const homeRAPG = parseFloat(h.runs_allowed_pg) || 4.5;
   const awayExpected = (awayRPG + homeRAPG) / 2;
   const homeExpected = (homeRPG + awayRAPG) / 2;
-  // Park factor adjustment
-  const parkAdj = parkFactor;
-  // High-K starters suppress runs
+  // Park factor scales TOTAL runs (both teams)
   const awayK9 = awayP.k9 || 8.0, homeK9 = homeP.k9 || 8.0;
-  const kSuppression = ((awayK9 + homeK9) / 2 - 8.0) * -0.08; // high K = slight under
-  const projectedTotal = (awayExpected + homeExpected) * parkAdj + kSuppression + (isDivisional ? -0.25 : 0);
+  const kSuppression = ((awayK9 + homeK9) / 2 - 8.0) * -0.08;
+  const projectedTotal = (awayExpected + homeExpected) * parkFactor + kSuppression + (isDivisional ? -0.25 : 0);
   const mktTotal = parseFloat(g.market_total) || null;
   const totalsEdge = mktTotal ? projectedTotal - mktTotal : 0;
   const totalsLean = totalsEdge > 0.3 ? 'OVER' : totalsEdge < -0.3 ? 'UNDER' : 'PASS';
 
-  // BABIP flag
   const babipFlag = aBabip < 0.270 ? 'away_low_babip' : aBabip > 0.330 ? 'away_high_babip' :
                     hBabip < 0.270 ? 'home_low_babip' : hBabip > 0.330 ? 'home_high_babip' : null;
 
@@ -1595,17 +1605,18 @@ function computeSpread(g, weights) {
     ml_lean, ml_confidence, babipFlag, parkFactor,
     starterConfDiscount: confDiscount, isDivisional, isInterleague,
     hasPlatoonData: hasPlatoonData,
-    awayPlatoonOPS: aPlatOPS, homePlatoonOPS: hPlatOPS,
+    awayBattingOPS: awayBattingOPS, homeBattingOPS: homeBattingOPS,
     awayStarterHand: awayStarterHand, homeStarterHand: homeStarterHand,
     projectedTotal: Math.round(projectedTotal * 10) / 10,
     totalsEdge: Math.round(totalsEdge * 100) / 100,
-    totalsLean, parkAdj: Math.round(parkAdj * 100) / 100,
+    totalsLean, parkAdj: Math.round(parkFactor * 100) / 100,
+    parkOffenseScale: Math.round(parkOffenseScale * 100) / 100,
     components: {
       base: +base.toFixed(3), starter: +starter_edge.toFixed(3),
-      bullpen: +bullpen_edge.toFixed(3), lineup: +lineup_edge.toFixed(3),
-      recency: +recency.toFixed(3),
-      site: +site.toFixed(3), context: +context_adj.toFixed(3),
-      platoon: +platoon_adj.toFixed(3), park_factor: +(parkFactor).toFixed(3),
+      batting: +batting_edge.toFixed(3),
+      bullpen: +bullpen_edge.toFixed(3),
+      park: +parkSpreadEdge.toFixed(3),
+      recency: +recency.toFixed(3), context: +context_adj.toFixed(3),
       babip_regression: +babip_adj.toFixed(3), bullpen_fatigue: +bullpen_fatigue_adj.toFixed(3),
     },
     starterDetail: {
@@ -2028,8 +2039,9 @@ async function formulaRun(cfg, today, slateGames) {
     const factors = [];
     const compAbs = {
       'Pythagorean': Math.abs(comps.base || 0), 'Starter': Math.abs(comps.starter || 0),
-      'Bullpen': Math.abs(comps.bullpen || 0), 'Lineup': Math.abs(comps.lineup || 0),
-      'Recency': Math.abs(comps.recency || 0), 'Home Field': Math.abs(comps.site || 0),
+      'Batting': Math.abs(comps.batting || 0),
+      'Bullpen': Math.abs(comps.bullpen || 0),
+      'Park': Math.abs(comps.park || 0), 'Recency': Math.abs(comps.recency || 0),
     };
     const dominant = Object.keys(compAbs).reduce(function (a, b) { return compAbs[a] > compAbs[b] ? a : b; });
     factors.push('Driver: ' + dominant);
@@ -2454,7 +2466,7 @@ async function runPostmortem() {
       return { date: g.date, matchup: g.away + ' @ ' + g.home, model_error: modelError, verdict: g.verdict, ats_result: g.ats_result, components: g.components || {} };
     }).filter(function (e) { return e.model_error !== null; });
 
-    const compKeys = ['base', 'starter', 'platoon', 'bullpen', 'lineup', 'site', 'recency', 'context', 'babip_regression', 'bullpen_fatigue'];
+    const compKeys = ['base', 'starter', 'batting', 'bullpen', 'park', 'recency', 'context', 'babip_regression', 'bullpen_fatigue'];
     const compStats = {};
     compKeys.forEach(function (k) {
       const vals = errors.filter(function (e) { return e.components[k] != null; });

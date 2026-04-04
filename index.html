@@ -1547,19 +1547,49 @@ function computeSpread(g, weights) {
   const babip_adj = babipRegression(hBabip, h.games) - babipRegression(aBabip, a.games);
   const bullpen_fatigue_adj = 0;
 
-  // ── WEIGHTED SUM — simple: each component * its weight ───────
-  // Each component already outputs in runs. Weight is a percentage.
-  // At 100% total weight, the sum = full model output.
-  const raw =
-      base            * w('base')
-    + starter_edge    * w('starter')
-    + batting_edge    * w('batting')
-    + bullpen_edge    * w('bullpen')
-    + parkSpreadEdge  * w('park')
-    + recency         * w('recency')
-    + context_adj     * w('context')
-    + babip_adj       * w('babip_regression')
-    + bullpen_fatigue_adj * w('bullpen_fatigue');
+  // ── WEIGHTED SUM ──────────────────────────────────────────────
+  // Weights control RELATIVE importance of each component.
+  // The raw output should produce realistic MLB spreads (0.5 to 3.0 runs).
+  //
+  // Method: each component is in runs. We take a weighted average
+  // (not weighted sum) — this preserves the magnitude of the runs
+  // while letting weights control which components matter more.
+  //
+  // weighted_avg = sum(component_i * weight_i) / sum(weight_i for active components)
+  // Then multiply by N_active to get the combined edge.
+  //
+  // Simpler equivalent: just sum the raw components, but scale each
+  // by (its weight / average weight). This means a 28% component 
+  // contributes more than a 5% component, but the total magnitude
+  // stays in the right ballpark.
+  
+  const activeWeights = {};
+  const rawComponents = {
+    base: base, starter: starter_edge, batting: batting_edge,
+    bullpen: bullpen_edge, park: parkSpreadEdge,
+    recency: recency, context: context_adj,
+    babip_regression: babip_adj, bullpen_fatigue: bullpen_fatigue_adj,
+  };
+  
+  // Calculate the average weight of active (non-zero weight) components
+  let totalWeight = 0, activeCount = 0;
+  for (var ck in rawComponents) {
+    var cw = w(ck);
+    if (cw > 0) { totalWeight += cw; activeCount++; }
+  }
+  const avgWeight = activeCount > 0 ? totalWeight / activeCount : 1;
+
+  // Weighted sum: scale each component by (its weight / avg weight)
+  // This means: component at average weight contributes 1x its raw value
+  // Component at 2x average weight contributes 2x its raw value
+  // Total output stays in runs, not fraction-of-runs
+  let raw = 0;
+  for (var ck2 in rawComponents) {
+    var cw2 = w(ck2);
+    if (cw2 > 0 && avgWeight > 0) {
+      raw += rawComponents[ck2] * (cw2 / avgWeight);
+    }
+  }
 
   // Determine fav/dog
   const favIsHome = raw >= 0;

@@ -2438,7 +2438,14 @@ async function applyESPNResults(dateStr, espnResults) {
       const mktMatch = (g.market_spread || '').match(/([A-Z]+)\s+([-+]?\d+\.?\d*)/);
       const mktLine = mktMatch ? parseFloat(mktMatch[2]) : null;
       const mktFavAbbr = mktMatch ? mktMatch[1].toUpperCase() : null;
-      const favIsHome = mktFavAbbr ? g.home.toUpperCase().split(' ').some(function (w) { return w.slice(0, 3) === mktFavAbbr.slice(0, 3); }) : match.homeScore > match.awayScore;
+      
+      // Determine if market fav is the home team using actual abbreviations
+      // g.code format is "AWY@HOM" (e.g., "ARI@NYM")
+      const codeParts = (g.code || '').split('@');
+      const gameAwayAbbr = (codeParts[0] || '').toUpperCase();
+      const gameHomeAbbr = (codeParts[1] || '').toUpperCase();
+      const favIsHome = mktFavAbbr ? (mktFavAbbr === gameHomeAbbr) : (match.homeScore > match.awayScore);
+      
       const favScore = favIsHome ? match.homeScore : match.awayScore;
       const dogScore = favIsHome ? match.awayScore : match.homeScore;
       const actualMargin = favScore - dogScore;

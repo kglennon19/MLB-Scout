@@ -2843,11 +2843,14 @@ async function runPostmortem() {
   const btn = document.getElementById('runPostmortemBtn');
   const status = document.getElementById('postmortemStatus');
   const container = document.getElementById('postmortemContainer');
+  if (!btn || !container) { console.error('Post-mortem UI elements missing'); return; }
   btn.disabled = true; status.textContent = 'Analyzing...';
   container.innerHTML = '<div class="empty pulsing"><div class="empty-icon">🔬</div>Compiling training data...</div>';
+  addLog('Post-mortem: starting analysis', 'info');
 
   try {
     const keys = await store.list('archive_');
+    addLog('Post-mortem: found ' + (keys.keys || []).length + ' archive keys', 'info');
     const allGames = [];
     for (const key of (keys.keys || []).sort()) {
       const r = await store.get(key);
@@ -2857,9 +2860,10 @@ async function runPostmortem() {
         if (g.actual_margin != null) allGames.push(Object.assign({}, g, { date: data.date }));
       });
     }
+    addLog('Post-mortem: ' + allGames.length + ' games with results', 'info');
 
     if (allGames.length < 3) {
-      container.innerHTML = '<div class="empty"><div class="empty-icon">🔬</div>Need at least 3 games with results.</div>';
+      container.innerHTML = '<div class="empty"><div class="empty-icon">🔬</div>Need at least 3 games with results. Found ' + allGames.length + '.</div>';
       btn.disabled = false; status.textContent = ''; return;
     }
 
@@ -2869,6 +2873,12 @@ async function runPostmortem() {
       const modelError = (modelNum != null) ? (g.actual_margin - modelNum) : null;
       return { date: g.date, matchup: g.away + ' @ ' + g.home, model_error: modelError, verdict: g.verdict, ats_result: g.ats_result, components: g.components || {} };
     }).filter(function (e) { return e.model_error !== null; });
+    
+    addLog('Post-mortem: ' + errors.length + ' games with valid model spreads', 'info');
+    if (errors.length < 3) {
+      container.innerHTML = '<div class="empty"><div class="empty-icon">🔬</div>Only ' + errors.length + ' games had parseable model spreads. Check archive data.</div>';
+      btn.disabled = false; status.textContent = ''; return;
+    }
 
     const compKeys = ['base', 'starter', 'batting', 'matchup', 'bullpen', 'park', 'recency', 'context', 'babip_regression', 'bullpen_fatigue'];
     const compStats = {};
@@ -2972,7 +2982,9 @@ async function runPostmortem() {
 
     status.textContent = '✓ ' + errors.length + ' games'; status.style.color = 'var(--green)';
   } catch (e) {
-    container.innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div>' + e.message + '</div>';
+    console.error('Post-mortem error:', e);
+    addLog('Post-mortem failed: ' + e.message, 'err');
+    container.innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div>Error: ' + e.message + '<br><small style="color:var(--text3)">Check browser console (F12) for details.</small></div>';
     status.textContent = '✗ Error'; status.style.color = 'var(--red)';
   }
   btn.disabled = false;

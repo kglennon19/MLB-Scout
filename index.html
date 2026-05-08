@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MLB Line Scout — v3</title>
+<title>MLB Line Scout — v3.1</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Outfit:wght@300;400;500;600;700;800&display=swap');
   :root {
@@ -302,7 +302,7 @@
 <body>
 
 <header>
-  <div class="logo"><div class="logo-dot"></div>MLB LINE SCOUT <span class="logo-version">V3</span></div>
+  <div class="logo"><div class="logo-dot"></div>MLB LINE SCOUT <span class="logo-version">V3.1</span></div>
   <div class="header-right">
     <span class="status-chip" id="lastRunChip">NEVER RUN</span>
     <button class="run-btn" id="mainRunBtn" onclick="runAgent()">
@@ -691,11 +691,11 @@ const state = { running: false, lastRun: null, todayGames: [], todayPicks: [], e
 
 // ─── WEIGHTS ────────────────────────────────────────────────────────
 const DEFAULT_WEIGHTS = {
-  starter:     { label: 'Starting pitcher quality edge',       value: 28 },
+  starter:     { label: 'Starting pitcher quality edge',       value: 29 },
   batting:     { label: 'Batting edge (platoon-adjusted)',     value: 25 },
-  base:        { label: 'Pythagorean expectancy edge',         value: 20 },
-  bullpen:     { label: 'Bullpen ERA differential',            value: 12 },
-  park:        { label: 'Park factor interaction',             value: 5  },
+  base:        { label: 'Pythagorean expectancy edge',         value: 19 },
+  bullpen:     { label: 'Bullpen ERA differential',            value: 11 },
+  park:        { label: 'Park factor interaction',             value: 6  },
   recency:     { label: 'Recency (last-5 scoring rate)',       value: 5  },
   context:     { label: 'Context (day/night, IL, division)',   value: 5  },
   // Dormant
@@ -773,9 +773,22 @@ const store = {
 };
 
 // ─── CONFIG ─────────────────────────────────────────────────────────
+const CONFIG_VERSION = 23;
 async function loadConfig() {
-  try { const r = await store.get('model_config'); if (r) return JSON.parse(r.value); } catch (e) {}
-  return { weights: DEFAULT_WEIGHTS, evThreshold: 0.25, totalsThreshold: 0.50, maxPlays: 6, gameScope: 'all', emailTo: '', autoEmail: 'ev_only' };
+  try {
+    const r = await store.get('model_config');
+    if (r) {
+      var cfg = JSON.parse(r.value);
+      // Reset corrupted weights on version upgrade (v22→v23 post-mortem fix)
+      if (!cfg._v || cfg._v < CONFIG_VERSION) {
+        cfg.weights = JSON.parse(JSON.stringify(DEFAULT_WEIGHTS));
+        cfg._v = CONFIG_VERSION;
+        await store.set('model_config', JSON.stringify(cfg));
+      }
+      return cfg;
+    }
+  } catch (e) {}
+  return { _v: CONFIG_VERSION, weights: DEFAULT_WEIGHTS, evThreshold: 0.25, totalsThreshold: 0.50, maxPlays: 6, gameScope: 'all', emailTo: '', autoEmail: 'ev_only' };
 }
 
 async function saveConfig() {
@@ -1962,18 +1975,8 @@ function computeSpread(g, weights) {
 }
 
 function evVerdict(computed, evThreshold) {
-  const { edge } = computed;
-  let verdict = 'PASS';
-  if (Math.abs(edge) >= evThreshold) {
-    if (computed.modelNum > 0 && computed.favIsHome) verdict = 'EV_FAV';
-    else if (computed.modelNum > 0 && !computed.favIsHome) verdict = 'EV_FAV';
-    else verdict = 'EV_DOG';
-    // Actually: if model thinks bigger spread than market, EV_FAV (lay the fav run line)
-    // if model thinks smaller spread, EV_DOG (take dog run line)
-    if (edge > 0) verdict = 'EV_FAV';
-    else verdict = 'EV_DOG';
-  }
-  return verdict;
+  if (Math.abs(computed.edge) < evThreshold) return 'PASS';
+  return computed.edge > 0 ? 'EV_FAV' : 'EV_DOG';
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -2469,7 +2472,7 @@ async function formulaRun(cfg, today, slateGames) {
       code: ((g.awayAbbr || '').toUpperCase() + '@' + (g.homeAbbr || '').toUpperCase()),
       event: g.event, time: g.time, neutral_site: g.neutral_site || false, isPlayoffs: g.isPlayoffs || false,
       market_spread: g.market_spread, market_total: g.market_total,
-      model_spread: c.modelSpread, ml_lean: c.ml_lean, ml_confidence: c.ml_confidence,
+      model_spread: c.modelSpread, model_raw: c.modelNum, ml_lean: c.ml_lean, ml_confidence: c.ml_confidence,
       babip_flag: c.babipFlag, park_factor: c.parkFactor,
       starter_conf_discount: c.starterConfDiscount,
       is_divisional: c.isDivisional, is_interleague: c.isInterleague,
@@ -2702,7 +2705,7 @@ async function archiveDailyRun(result, cfg, today) {
       return {
         id: g.id, away: g.away, home: g.home, event: g.event,
         code: g.code || '',
-        market_spread: g.market_spread, model_spread: g.model_spread,
+        market_spread: g.market_spread, model_spread: g.model_spread, model_raw: g.model_raw,
         edge_pts: g.edge_pts, verdict: g.verdict, play: g.play,
         components: g.components || {},
         actual_away_score: null, actual_home_score: null, actual_margin: null, ats_result: null,
@@ -2864,7 +2867,17 @@ async function applyESPNResults(dateStr, espnResults) {
         if (gameHomeAbbr && gameAwayAbbr) g.code = gameAwayAbbr + '@' + gameHomeAbbr;
       }
       const favIsHome = mktFavAbbr ? (mktFavAbbr === gameHomeAbbr) : (match.homeScore > match.awayScore);
-      
+
+      // Backfill model_raw for legacy archives (pre-v23)
+      if (g.model_raw == null && g.model_spread) {
+        var modelFavMatch = (g.model_spread || '').match(/^([A-Z]+)\s+[-]?([\d.]+)/);
+        if (modelFavMatch) {
+          var mfAbbr = modelFavMatch[1];
+          var mfAbs = parseFloat(modelFavMatch[2]);
+          g.model_raw = (mfAbbr === gameHomeAbbr) ? mfAbs : -mfAbs;
+        }
+      }
+
       const favScore = favIsHome ? match.homeScore : match.awayScore;
       const dogScore = favIsHome ? match.awayScore : match.homeScore;
       const actualMargin = favScore - dogScore;
@@ -2920,9 +2933,30 @@ async function runPostmortem() {
     }
 
     const errors = allGames.map(function (g) {
-      const modelMatch = (g.model_spread || '').match(/([-+]?\d+\.?\d*)$/);
-      const modelNum = modelMatch ? Math.abs(parseFloat(modelMatch[1])) : null;
-      const modelError = (modelNum != null) ? (g.actual_margin - modelNum) : null;
+      // Use stored signed model_raw when available (v23+), else derive from spread strings
+      var signedModel = null;
+      if (g.model_raw != null) {
+        // model_raw is signed: positive = home favored, negative = away favored
+        // actual_margin is relative to market fav, so align model_raw the same way
+        var mktFavMatch = (g.market_spread || '').match(/^([A-Z]+)/);
+        var mktFav = mktFavMatch ? mktFavMatch[1] : '';
+        var codeParts = (g.code || '').split('@');
+        var homeAbbr = (codeParts[1] || '').toUpperCase();
+        var mktFavIsHome = mktFav === homeAbbr;
+        // model_raw > 0 means model favors home; align to market fav perspective
+        signedModel = mktFavIsHome ? g.model_raw : -g.model_raw;
+      } else {
+        // Legacy archives: derive sign from model_spread vs market_spread abbreviations
+        var modelFavMatch = (g.model_spread || '').match(/^([A-Z]+)\s+[-]?([\d.]+)/);
+        var mktFavMatch2 = (g.market_spread || '').match(/^([A-Z]+)/);
+        if (modelFavMatch) {
+          var modelFav = modelFavMatch[1];
+          var modelAbs = parseFloat(modelFavMatch[2]);
+          var mktFav2 = mktFavMatch2 ? mktFavMatch2[1] : modelFav;
+          signedModel = (modelFav === mktFav2) ? modelAbs : -modelAbs;
+        }
+      }
+      var modelError = (signedModel != null) ? (g.actual_margin - signedModel) : null;
       return { date: g.date, matchup: g.away + ' @ ' + g.home, model_error: modelError, verdict: g.verdict, ats_result: g.ats_result, components: g.components || {} };
     }).filter(function (e) { return e.model_error !== null; });
     
@@ -3161,22 +3195,34 @@ async function recomputeAllATS() {
         if (!mktMatch) return;
         var mktFavAbbr = mktMatch[1].toUpperCase();
         var mktLine = parseFloat(mktMatch[2]);
-        
+
         var codeParts = (g.code || '').split('@');
         var homeAbbr2 = (codeParts[1] || '').toUpperCase();
         var favIsHome = (mktFavAbbr === homeAbbr2);
-        
+
         var favScore = favIsHome ? g.actual_home_score : g.actual_away_score;
         var dogScore = favIsHome ? g.actual_away_score : g.actual_home_score;
         var actualMargin = favScore - dogScore;
         var covered = actualMargin + mktLine;
-        
+
+        // Backfill model_raw for legacy archives (pre-v23)
+        if (g.model_raw == null && g.model_spread) {
+          var modelFavMatch = (g.model_spread || '').match(/^([A-Z]+)\s+[-]?([\d.]+)/);
+          if (modelFavMatch) {
+            var modelFavAbbr2 = modelFavMatch[1];
+            var modelAbs = parseFloat(modelFavMatch[2]);
+            var modelFavIsHome = modelFavAbbr2 === homeAbbr2;
+            g.model_raw = modelFavIsHome ? modelAbs : -modelAbs;
+            changed = true;
+          }
+        }
+
         var newATS = null;
         if (Math.abs(covered) < 0.1) newATS = 'P';
         else if (g.verdict === 'EV_FAV') newATS = covered > 0 ? 'W' : 'L';
         else if (g.verdict === 'EV_DOG') newATS = covered < 0 ? 'W' : 'L';
         else newATS = covered > 0 ? 'FAV_CVR' : 'DOG_CVR';
-        
+
         if (newATS !== g.ats_result) {
           g.ats_result = newATS;
           g.actual_margin = actualMargin;

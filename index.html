@@ -773,15 +773,18 @@ const store = {
 };
 
 // ─── CONFIG ─────────────────────────────────────────────────────────
-const CONFIG_VERSION = 23;
+const CONFIG_VERSION = 24;
 async function loadConfig() {
   try {
     const r = await store.get('model_config');
     if (r) {
       var cfg = JSON.parse(r.value);
-      // Reset corrupted weights on version upgrade (v22→v23 post-mortem fix)
+      // Reset corrupted weights + thresholds on version upgrade (v22→v23 post-mortem fix)
       if (!cfg._v || cfg._v < CONFIG_VERSION) {
         cfg.weights = JSON.parse(JSON.stringify(DEFAULT_WEIGHTS));
+        cfg.evThreshold = 0.25;
+        cfg.totalsThreshold = 0.50;
+        cfg.maxPlays = 6;
         cfg._v = CONFIG_VERSION;
         await store.set('model_config', JSON.stringify(cfg));
       }
@@ -957,6 +960,41 @@ function fuzzyFind(dict, name) {
     if (kl.startsWith(nl.split(' ')[0]) || nl.startsWith(kl.split(' ')[0])) return dict[k];
   }
   return null;
+}
+
+async function buildRecentFormCache() {
+  var cache = {};
+  try {
+    var keys = await store.list('archive_');
+    var sorted = (keys.keys || []).sort().reverse();
+    var teamGames = {};
+    for (var ki = 0; ki < sorted.length; ki++) {
+      var r = await store.get(sorted[ki]);
+      if (!r) continue;
+      var data = JSON.parse(r.value);
+      (data.games || []).forEach(function(g) {
+        if (g.actual_away_score == null) return;
+        var codeParts = (g.code || '').split('@');
+        var awayAbbr = (codeParts[0] || '').toUpperCase();
+        var homeAbbr = (codeParts[1] || '').toUpperCase();
+        if (awayAbbr && (!teamGames[awayAbbr] || teamGames[awayAbbr].length < 7)) {
+          if (!teamGames[awayAbbr]) teamGames[awayAbbr] = [];
+          teamGames[awayAbbr].push(g.actual_away_score);
+        }
+        if (homeAbbr && (!teamGames[homeAbbr] || teamGames[homeAbbr].length < 7)) {
+          if (!teamGames[homeAbbr]) teamGames[homeAbbr] = [];
+          teamGames[homeAbbr].push(g.actual_home_score);
+        }
+      });
+    }
+    for (var abbr in teamGames) {
+      var scores = teamGames[abbr];
+      if (scores.length >= 3) {
+        cache[abbr] = { rpg: scores.reduce(function(s,v){return s+v;},0) / scores.length, games: scores.length };
+      }
+    }
+  } catch(e) {}
+  window._recentFormCache = cache;
 }
 
 function buildMLBStatsCache() {
@@ -1700,7 +1738,7 @@ function computeSpread(g, weights) {
     return (rpg + rapg) > 0 ? Math.pow(rpg, 1.83) / (Math.pow(rpg, 1.83) + Math.pow(rapg, 1.83)) : 0.5;
   }
   var aPyth = pythProxy(a), hPyth = pythProxy(h);
-  var base = (hPyth - aPyth) * 5.0;
+  var base = (hPyth - aPyth) * 8.0;
 
   // ── 2. STARTER — blended pitcher quality (xERA + xwOBA against)
   var awayStarter = g.away_starter || {};
@@ -1741,8 +1779,8 @@ function computeSpread(g, weights) {
   var homeP = getStarterStats(homeStarter);
   var confDiscount = (awayStarter.confidence === 'Confirmed' || awayStarter.confidence === 'confirmed') &&
                      (homeStarter.confidence === 'Confirmed' || homeStarter.confidence === 'confirmed') ? 1.0 : 0.65;
-  var raw_starter = (awayP.bestERA - homeP.bestERA) * 0.45 * confDiscount;
-  var starter_edge = Math.max(-2.0, Math.min(2.0, raw_starter));
+  var raw_starter = (awayP.bestERA - homeP.bestERA) * 0.55 * confDiscount;
+  var starter_edge = Math.max(-3.0, Math.min(3.0, raw_starter));
 
   // ── 3. BATTING — lineup xwOBA with matchup interaction ────────
   function getStarterHand(starter) {
@@ -1781,7 +1819,7 @@ function computeSpread(g, weights) {
     hasLineupData = true;
   }
 
-  var battingScale = hasLineupData ? 12.0 : 5.0;
+  var battingScale = hasLineupData ? 16.0 : 8.0;
   var batting_edge = (homeBattingVal - awayBattingVal) * battingScale * parkOffenseScale;
 
   // ── 4. MATCHUP INTERACTION — lineup barrel% vs pitcher barrel% allowed
@@ -1815,7 +1853,7 @@ function computeSpread(g, weights) {
   // ── 5. BULLPEN ───────────────────────────────────────────────
   var aBullpen = parseFloat(a.bullpen_era || a.era) || 4.00;
   var hBullpen = parseFloat(h.bullpen_era || h.era) || 4.00;
-  var bullpen_edge = (aBullpen - hBullpen) * 0.33;
+  var bullpen_edge = (aBullpen - hBullpen) * 0.25;
 
   // ── 6. PARK + WEATHER ────────────────────────────────────────
   // Weather effect on spread: extreme weather amplifies home advantage
@@ -1826,15 +1864,24 @@ function computeSpread(g, weights) {
     var flight = parseFloat(bppData.typicalflight) || 0;
     weatherAdj = flight * 0.03; // ±0.03 runs per flight unit, favoring home team familiarity
   }
-  var parkSpreadEdge = (parkFactor - 1.0) * 0.4 + weatherAdj;
+  var parkSpreadEdge = (parkFactor - 1.0) * 0.8 + weatherAdj;
 
-  // ── 7. RECENCY ───────────────────────────────────────────────
-  function recencyBoost(stats) {
+  // ── 7. RECENCY — archive-derived last-7 scoring rate vs season ──
+  function recencyBoost(stats, teamAbbr) {
     var season = parseFloat(stats.runs_pg) || 4.5;
-    var recent = parseFloat(stats.recent_rpg) || season;
-    return Math.max(-0.30, Math.min(0.30, (recent - season) * 0.4));
+    // Use recent_rpg if available from data source
+    if (stats.recent_rpg != null) {
+      var recent = parseFloat(stats.recent_rpg);
+      return Math.max(-0.40, Math.min(0.40, (recent - season) * 0.5));
+    }
+    // Compute from archives: last 7 games for this team
+    if (teamAbbr && window._recentFormCache && window._recentFormCache[teamAbbr]) {
+      var form = window._recentFormCache[teamAbbr];
+      return Math.max(-0.40, Math.min(0.40, (form.rpg - season) * 0.5));
+    }
+    return 0;
   }
-  var recency = recencyBoost(h) - recencyBoost(a);
+  var recency = recencyBoost(h, g.homeAbbr) - recencyBoost(a, g.awayAbbr);
 
   // ── 8. CONTEXT ───────────────────────────────────────────────
   var homeAdv = (g.neutral_site || g.neutral) ? 0 : 0.10;
@@ -1883,6 +1930,7 @@ function computeSpread(g, weights) {
   raw += matchup_adj;
 
   // ── SPREAD OUTPUT ────────────────────────────────────────────
+  raw = Math.max(-5.0, Math.min(5.0, raw));
   var favIsHome = raw >= 0;
   var favAbbr = favIsHome ? (g.homeAbbr || '').toUpperCase() : (g.awayAbbr || '').toUpperCase();
   var favName = favIsHome ? g.home : g.away;
@@ -2330,6 +2378,7 @@ async function runAgent(slateOverride) {
   document.getElementById('lastRunChip').className = 'status-chip live';
 
   const cfg = await loadConfig();
+  await buildRecentFormCache();
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   addLog('=== Agent run: ' + today + ' ===', 'ok');
 
@@ -2957,7 +3006,13 @@ async function runPostmortem() {
         }
       }
       var modelError = (signedModel != null) ? (g.actual_margin - signedModel) : null;
-      return { date: g.date, matchup: g.away + ' @ ' + g.home, model_error: modelError, verdict: g.verdict, ats_result: g.ats_result, components: g.components || {} };
+      // Normalize legacy component keys (lineup→batting, site→park)
+      var rc = g.components || {};
+      var nc = {};
+      for (var rk in rc) nc[rk] = rc[rk];
+      if (nc.batting == null && nc.lineup != null) nc.batting = nc.lineup;
+      if (nc.park == null && nc.site != null) nc.park = nc.site;
+      return { date: g.date, matchup: g.away + ' @ ' + g.home, model_error: modelError, verdict: g.verdict, ats_result: g.ats_result, components: nc };
     }).filter(function (e) { return e.model_error !== null; });
     
     addLog('Post-mortem: ' + errors.length + ' games with valid model spreads', 'info');

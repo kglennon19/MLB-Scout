@@ -419,7 +419,7 @@
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
           <div style="flex:1">
             <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">📊 Baseball Reference <span style="font-size:10px;font-weight:400;color:var(--text3)">(optional — Pythagorean W%, BABIP, run differential)</span></div>
-            <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-bottom:8px">Paste in F12 console on <code style="color:var(--blue)">baseball-reference.com/leagues/majors/2025.shtml</code></div>
+            <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-bottom:8px">Paste in F12 console on <code style="color:var(--blue)">baseball-reference.com/leagues/majors/2026.shtml</code></div>
             <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
               <button class="btn-sm primary" id="syncBRBtn" onclick="syncBaseballRef()">⟳ Sync Baseball Ref</button>
               <button class="btn-sm" onclick="checkStatsCache()">Check Cache</button>
@@ -433,7 +433,7 @@
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
           <div style="flex:1">
             <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">🔄 Team Batting vs LHP <span style="font-size:10px;font-weight:400;color:var(--text3)">(platoon splits — OPS, SLG, HR vs left-handed pitchers)</span></div>
-            <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-bottom:8px">Paste in F12 console on <code style="color:var(--blue)">baseball-reference.com/leagues/majors/2025.shtml</code> (pitching table)</div>
+            <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-bottom:8px">Paste in F12 console on <code style="color:var(--blue)">baseball-reference.com/leagues/majors/2026.shtml</code> (pitching table)</div>
             <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
               <button class="btn-sm primary" id="syncBRPitchBtn" onclick="syncBaseballRefPitching()">⟳ Sync BR Pitching</button>
               <span id="brPitchSyncStatus" style="font-size:10px;font-family:var(--mono);color:var(--text3)">Not synced</span>
@@ -511,7 +511,7 @@
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
           <div style="flex:1">
             <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">👤 Individual Player Batting <span style="font-size:10px;font-weight:400;color:var(--text3)">(optional — per-player OPS, HR, SLG for props)</span></div>
-            <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-bottom:8px">Paste in F12 console on <code style="color:var(--blue)">baseball-reference.com/leagues/majors/2025-standard-batting.shtml</code></div>
+            <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-bottom:8px">Paste in F12 console on <code style="color:var(--blue)">baseball-reference.com/leagues/majors/2026-standard-batting.shtml</code></div>
             <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
               <button class="btn-sm" id="syncBRPlayerBtn" onclick="syncBRPlayers()">⟳ Sync Player Stats</button>
               <span id="brPlayerSyncStatus" style="font-size:10px;font-family:var(--mono);color:var(--text3)">Not synced — props use team averages</span>
@@ -1277,7 +1277,7 @@ async function autoFetchESPN() {
 // BASEBALL REFERENCE SCRAPERS — copy()+paste approach
 // ═══════════════════════════════════════════════════════════════════
 
-const BR_TEAM_SCRAPER = '(function(){try{var bt=document.getElementById("teams_standard_batting");var pt=document.getElementById("teams_standard_pitching");if(!bt){console.error("No teams_standard_batting table. Are you on baseball-reference.com/leagues/majors/2025.shtml?");return;}function grab(tbl){var rows=tbl.querySelectorAll("tbody tr");var d={};for(var r=0;r<rows.length;r++){var row=rows[r];if(row.classList.contains("thead")||row.classList.contains("stat_total"))continue;var a=row.querySelector("a");if(!a)continue;var nm=a.textContent.trim().replace(/[*+]/g,"");if(!nm)continue;var o={};var cells=row.querySelectorAll("td,th");for(var c=0;c<cells.length;c++){var s=cells[c].getAttribute("data-stat");if(s)o[s]=cells[c].textContent.trim();}d[nm]=o;}return d;}var bat=grab(bt);var pit=pt?grab(pt):{};var merged={};var ct=0;Object.keys(bat).forEach(function(team){var b=bat[team]||{};var p=pit[team]||{};var rpg=parseFloat(b.runs_per_game)||null;var rapg=parseFloat(p.runs_allowed_per_game)||null;var pyth=null;if(rpg&&rapg&&(rpg+rapg)>0)pyth=Math.pow(rpg,1.83)/(Math.pow(rpg,1.83)+Math.pow(rapg,1.83));merged[team]={runs_pg:rpg,runs_allowed_pg:rapg,pyth_pct:pyth,ops:parseFloat(b.onbase_plus_slugging)||null,slg:parseFloat(b.slugging_perc)||null,avg:parseFloat(b.batting_avg)||null,hr:parseInt(b.HR)||0,pa:parseInt(b.PA)||0,so:parseInt(b.SO)||0,era:parseFloat(p.earned_run_avg)||null,fip:parseFloat(p.fip)||null,whip:parseFloat(p.whip)||null,k9:parseFloat(p.strikeouts_per_nine)||null,bb9:parseFloat(p.bases_on_balls_per_nine)||null,hr9:parseFloat(p.home_runs_per_nine)||null};ct++;});var payload=JSON.stringify({type:"br_team_stats",count:ct,data:merged});if(typeof copy==="function"){copy(payload);console.log("DONE! "+ct+" teams copied. Paste into MLB Line Scout.");}else{console.log(payload);}}catch(e){console.error("Error:",e.message);}})();';
+const BR_TEAM_SCRAPER = '(function(){try{var bt=document.getElementById("teams_standard_batting");var pt=document.getElementById("teams_standard_pitching");if(!bt){console.error("No teams_standard_batting table. Are you on baseball-reference.com/leagues/majors/2026.shtml?");return;}function grab(tbl){var rows=tbl.querySelectorAll("tbody tr");var d={};for(var r=0;r<rows.length;r++){var row=rows[r];if(row.classList.contains("thead")||row.classList.contains("stat_total"))continue;var a=row.querySelector("a");if(!a)continue;var nm=a.textContent.trim().replace(/[*+]/g,"");if(!nm)continue;var o={};var cells=row.querySelectorAll("td,th");for(var c=0;c<cells.length;c++){var s=cells[c].getAttribute("data-stat");if(s)o[s]=cells[c].textContent.trim();}d[nm]=o;}return d;}var bat=grab(bt);var pit=pt?grab(pt):{};var merged={};var ct=0;Object.keys(bat).forEach(function(team){var b=bat[team]||{};var p=pit[team]||{};var rpg=parseFloat(b.runs_per_game)||null;var rapg=parseFloat(p.runs_allowed_per_game)||null;var pyth=null;if(rpg&&rapg&&(rpg+rapg)>0)pyth=Math.pow(rpg,1.83)/(Math.pow(rpg,1.83)+Math.pow(rapg,1.83));merged[team]={runs_pg:rpg,runs_allowed_pg:rapg,pyth_pct:pyth,ops:parseFloat(b.onbase_plus_slugging)||null,slg:parseFloat(b.slugging_perc)||null,avg:parseFloat(b.batting_avg)||null,hr:parseInt(b.HR)||0,pa:parseInt(b.PA)||0,so:parseInt(b.SO)||0,era:parseFloat(p.earned_run_avg)||null,fip:parseFloat(p.fip)||null,whip:parseFloat(p.whip)||null,k9:parseFloat(p.strikeouts_per_nine)||null,bb9:parseFloat(p.bases_on_balls_per_nine)||null,hr9:parseFloat(p.home_runs_per_nine)||null};ct++;});var payload=JSON.stringify({type:"br_team_stats",count:ct,data:merged});if(typeof copy==="function"){copy(payload);console.log("DONE! "+ct+" teams copied. Paste into MLB Line Scout.");}else{console.log(payload);}}catch(e){console.error("Error:",e.message);}})();';
 
 const BR_SPLITS_VS_LHP_SCRAPER = '(function(){try{var t=document.getElementById("split1");if(!t){console.error("No split1 table. Are you on the vs LHP splits page?");return;}var rows=t.querySelectorAll("tbody tr");var data={};var ct=0;for(var r=0;r<rows.length;r++){var row=rows[r];if(row.classList.contains("thead"))continue;var o={};var cells=row.querySelectorAll("td,th");for(var c=0;c<cells.length;c++){var s=cells[c].getAttribute("data-stat");if(s)o[s]=cells[c].textContent.trim();}var tm=o.team;if(!tm)continue;data[tm]={avg:parseFloat(o.batting_avg)||null,obp:parseFloat(o.onbase_perc)||null,slg:parseFloat(o.slugging_perc)||null,ops:parseFloat(o.onbase_plus_slugging)||null,hr:parseInt(o.HR)||0,so:parseInt(o.SO)||0,bb:parseInt(o.BB)||0,pa:parseInt(o.PA)||0,babip:parseFloat(o.batting_avg_bip)||null};ct++;}var payload=JSON.stringify({type:"br_splits_vs_lhp",count:ct,data:data});if(typeof copy==="function"){copy(payload);console.log("DONE! "+ct+" teams vs LHP copied. Paste into MLB Line Scout.");}else{console.log(payload);}}catch(e){console.error("Error:",e.message);}})();';
 
@@ -1315,19 +1315,19 @@ function buildSyncUI(id, title, emoji, url, scraper, pasteCallback, statusId) {
 
 function syncBaseballRef() {
   buildSyncUI('syncBRBtn', 'Baseball Reference Team Stats', '📊',
-    'https://www.baseball-reference.com/leagues/majors/2025.shtml',
+    'https://www.baseball-reference.com/leagues/majors/2026.shtml',
     BR_TEAM_SCRAPER, 'processBRTeamPaste', 'brSyncStatus');
 }
 
 function syncBaseballRefPitching() {
   buildSyncUI('syncBRPitchBtn', 'Team Batting vs LHP', '🔄',
-    'https://www.baseball-reference.com/tools/split_stats_lg.cgi?full=1&params=plato%7Cvs+LHP%7CML%7C2025%7Cbat%7CAB%7C',
+    'https://www.baseball-reference.com/tools/split_stats_lg.cgi?full=1&params=plato%7Cvs+LHP%7CML%7C2026%7Cbat%7CAB%7C',
     BR_SPLITS_VS_LHP_SCRAPER, 'processBRSplitsLHPPaste', 'brPitchSyncStatus');
 }
 
 function syncBaseballRefBatting() {
   buildSyncUI('syncBRBatBtn', 'Team Batting vs RHP', '🔄',
-    'https://www.baseball-reference.com/tools/split_stats_lg.cgi?full=1&params=plato%7Cvs+RHP%7CML%7C2025%7Cbat%7CAB%7C',
+    'https://www.baseball-reference.com/tools/split_stats_lg.cgi?full=1&params=plato%7Cvs+RHP%7CML%7C2026%7Cbat%7CAB%7C',
     BR_SPLITS_VS_RHP_SCRAPER, 'processBRSplitsRHPPaste', 'brBatSyncStatus');
 }
 
@@ -1433,7 +1433,7 @@ async function processBPPPaste(boxId) {
 // Individual player batting sync
 function syncBRPlayers() {
   buildSyncUI('syncBRPlayerBtn', 'Individual Player Batting', '👤',
-    'https://www.baseball-reference.com/leagues/majors/2025-standard-batting.shtml',
+    'https://www.baseball-reference.com/leagues/majors/2026-standard-batting.shtml',
     BR_PLAYER_BATTING_SCRAPER, 'processBRPlayerPaste', 'brPlayerSyncStatus');
 }
 
